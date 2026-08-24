@@ -1,0 +1,6 @@
+{
+  "name": "LumiMusic",
+  "description": "Native music and video player for Android, with Google Pixel aesthetics (Material Design 3) and AMOLED support.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
