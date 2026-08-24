@@ -36,6 +36,25 @@ data class SpotifyData(
     @Json(name = "dl") val downloadUrl: String?
 )
 
+
+@JsonClass(generateAdapter = true)
+data class LyricsResponse(
+    val status: Boolean,
+    val creator: String?,
+    val data: List<LyricsData>?
+)
+
+@JsonClass(generateAdapter = true)
+data class LyricsData(
+    val id: Long?,
+    val title: String?,
+    val artist: String?,
+    val album: String?,
+    val duration: Long?,
+    val lyrics: String?,
+    val lrc: String?
+)
+
 interface AlyaCoreApi {
     @GET("dl/spotifyplay")
     suspend fun searchSpotify(
@@ -50,6 +69,13 @@ interface AlyaCoreApi {
         @Query("quality") quality: String = "auto",
         @Query("key") key: String = "LumiBot-alya"
     ): AudioResponse
+
+    
+    @GET("tools/lyrics")
+    suspend fun searchLyrics(
+        @Query("query") query: String,
+        @Query("key") key: String = "LumiBot-Alya"
+    ): LyricsResponse
 
     companion object {
         const val BASE_URL = "https://api.alyacore.xyz/"

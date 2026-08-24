@@ -46,6 +46,12 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    fun updateTransitions(type: String, duration: Int) {
+        viewModelScope.launch {
+            dao.updateTransitions(type, duration)
+        }
+    }
+
     fun recordDownload() {
         viewModelScope.launch {
             dao.incrementDownloads()

@@ -16,5 +16,7 @@ data class UserStats(
     val bgColorHex: String = "#000000", // AMOLED black default
     val fontPreference: String = "Default",
     val neonBorders: Boolean = true,
-    val extractAlbumColor: Boolean = true
+    val extractAlbumColor: Boolean = true,
+    val transitionType: String = "Gapless",
+    val transitionDuration: Int = 3
 )

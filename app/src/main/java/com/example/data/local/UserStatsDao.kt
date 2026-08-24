@@ -34,4 +34,7 @@ interface UserStatsDao {
 
     @Query("UPDATE user_stats SET primaryColorHex = :primary, bgColorHex = :bg, fontPreference = :font, neonBorders = :neon, extractAlbumColor = :extract WHERE id = 1")
     suspend fun updateAppearance(primary: String, bg: String, font: String, neon: Boolean, extract: Boolean)
+
+    @Query("UPDATE user_stats SET transitionType = :type, transitionDuration = :duration WHERE id = 1")
+    suspend fun updateTransitions(type: String, duration: Int)
 }

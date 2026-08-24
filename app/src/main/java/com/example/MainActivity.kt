@@ -8,6 +8,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
@@ -20,6 +21,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.graphics.drawable.toBitmap
@@ -40,6 +42,9 @@ import com.example.viewmodel.DownloadState
 import com.example.viewmodel.MainViewModel
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import com.example.viewmodel.LocalMusicViewModel
 import com.example.viewmodel.ProfileViewModel
@@ -56,9 +61,11 @@ import com.google.common.util.concurrent.MoreExecutors
 import kotlinx.coroutines.delay
 
 import com.example.ui.components.MiniPlayer
+import com.example.ui.components.FullScreenPlayer
 import com.example.ui.components.LyricsBottomSheet
 import com.example.ui.components.AudioSettingsBottomSheet
 
+@OptIn(androidx.compose.animation.ExperimentalSharedTransitionApi::class)
 class MainActivity : ComponentActivity() {
     private val viewModel: MainViewModel by viewModels()
     private val localMusicViewModel: LocalMusicViewModel by viewModels()
@@ -77,12 +84,43 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
+        val sessionToken = androidx.media3.session.SessionToken(this, android.content.ComponentName(this, com.example.player.PlaybackService::class.java))
+        controllerFuture = androidx.media3.session.MediaController.Builder(this, sessionToken).buildAsync()
+        controllerFuture?.addListener(
+            {
+                mediaController = controllerFuture?.get()
+                mediaController?.addListener(object : androidx.media3.common.Player.Listener {
+                    override fun onMediaItemTransition(mediaItem: androidx.media3.common.MediaItem?, reason: Int) {
+                        super.onMediaItemTransition(mediaItem, reason)
+                        if (reason == androidx.media3.common.Player.MEDIA_ITEM_TRANSITION_REASON_AUTO) {
+                            // If auto-transition happened, wait and see if we have next item. If not, the player might stop.
+                            // However, we want to add random tracks. 
+                        }
+                    }
+                    
+                    override fun onPlaybackStateChanged(playbackState: Int) {
+                        if (playbackState == androidx.media3.common.Player.STATE_ENDED) {
+                            // Queue ended, try next remote, else random
+                            if (mediaController?.mediaItemCount == 1) {
+                                val isShuffle = mediaController?.shuffleModeEnabled == true
+                                val repeatMode = mediaController?.repeatMode ?: androidx.media3.common.Player.REPEAT_MODE_OFF
+                                if (!viewModel.playNextRemote(isShuffle, repeatMode)) {
+                                    viewModel.playNextRandomTrack(profileViewModel.userStats.value.apiPreference)
+                                }
+                            }
+                        }
+                    }
+                })
+            },
+            com.google.common.util.concurrent.MoreExecutors.directExecutor()
+        )
+
         setContent {
             val userStats by profileViewModel.userStats.collectAsStateWithLifecycle()
             var dominantColor by remember { mutableStateOf<Color?>(null) }
-            var showLyrics by remember { mutableStateOf(false) }
+            var showFullScreenPlayer by remember { mutableStateOf(false) }
 
-            // Decide active color based on user setting or extracted cover color
             val activeColor = if (userStats.extractAlbumColor && dominantColor != null) {
                 dominantColor!!
             } else {
@@ -91,122 +129,181 @@ class MainActivity : ComponentActivity() {
 
             MyApplicationTheme(
                 primaryColorHex = userStats.primaryColorHex,
-                bgColorHex = userStats.bgColorHex,
                 fontPref = userStats.fontPreference,
                 dynamicColor = false
             ) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background
+                    color = Color.Black
                 ) {
+                  androidx.compose.animation.SharedTransitionLayout {
                     var selectedTab by remember { mutableStateOf(0) }
                     var showEqualizer by remember { mutableStateOf(false) }
 
-                    if (showLyrics) {
-                        LyricsBottomSheet(viewModel = viewModel) {
-                            showLyrics = false
-                        }
-                    }
-
-                    if (showEqualizer) {
-                        AudioSettingsBottomSheet(controller = mediaController) {
-                            showEqualizer = false
-                        }
-                    }
-
-                    Scaffold(
-                        bottomBar = {
-                            Column {
-                                MiniPlayer(
-                                    controller = mediaController,
-                                    dominantColor = activeColor,
-                                    onShowLyrics = {
-                                        val title = mediaController?.currentMediaItem?.mediaMetadata?.title?.toString()
-                                        val artist = mediaController?.currentMediaItem?.mediaMetadata?.artist?.toString()
-                                        if (!title.isNullOrBlank()) {
-                                            viewModel.fetchLyrics(title, artist ?: "")
-                                        }
-                                        showLyrics = true
-                                    }
-                                )
-                                NavigationBar(
-                                    containerColor = MaterialTheme.colorScheme.background,
-                                    contentColor = activeColor
-                                ) {
-                                    NavigationBarItem(
-                                        icon = { Icon(Icons.Rounded.Search, contentDescription = "Online") },
-                                        label = { Text("Online") },
-                                        selected = selectedTab == 0,
-                                        onClick = { selectedTab = 0 },
-                                        colors = NavigationBarItemDefaults.colors(indicatorColor = activeColor.copy(alpha = 0.2f), selectedIconColor = activeColor, selectedTextColor = activeColor)
-                                    )
-                                    NavigationBarItem(
-                                        icon = { Icon(Icons.Rounded.List, contentDescription = "Local") },
-                                        label = { Text("Local") },
-                                        selected = selectedTab == 1,
-                                        onClick = { 
-                                            selectedTab = 1
-                                            checkAndRequestPermissions()
-                                        },
-                                        colors = NavigationBarItemDefaults.colors(indicatorColor = activeColor.copy(alpha = 0.2f), selectedIconColor = activeColor, selectedTextColor = activeColor)
-                                    )
-                                    NavigationBarItem(
-                                        icon = { Icon(Icons.Rounded.Person, contentDescription = "Profile") },
-                                        label = { Text("Profile") },
-                                        selected = selectedTab == 2,
-                                        onClick = { selectedTab = 2 },
-                                        colors = NavigationBarItemDefaults.colors(indicatorColor = activeColor.copy(alpha = 0.2f), selectedIconColor = activeColor, selectedTextColor = activeColor)
-                                    )
-                                }
-                            }
-                        }
-                    ) { padding ->
-                        Box(modifier = Modifier.padding(padding)) {
-                            androidx.compose.animation.AnimatedContent(
-                                targetState = selectedTab,
-                                transitionSpec = {
-                                    androidx.compose.animation.slideInHorizontally { width -> if (targetState > initialState) width else -width } + androidx.compose.animation.fadeIn() togetherWith
-                                    androidx.compose.animation.slideOutHorizontally { width -> if (targetState > initialState) -width else width } + androidx.compose.animation.fadeOut()
-                                },
-                                label = "TabTransition"
-                            ) { tab ->
-                                when (tab) {
-                                    0 -> MainScreen(
-                                        viewModel = viewModel,
-                                        profileViewModel = profileViewModel,
+                    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+                        val isWideScreen = maxWidth >= 600.dp
+                        
+                        Scaffold(
+                            bottomBar = {
+                                Column {
+                                    MiniPlayer(viewModel = viewModel, 
                                         controller = mediaController,
-                                        onColorExtracted = { color -> dominantColor = color },
-                                        dominantColor = activeColor
-                                    )
-                                    1 -> LocalMusicScreen(
-                                        viewModel = localMusicViewModel,
-                                        controller = mediaController,
-                                        dominantColor = activeColor
-                                    )
-                                    2 -> ProfileScreen(
-                                        viewModel = profileViewModel,
                                         dominantColor = activeColor,
-                                        onOpenEqualizer = { showEqualizer = true }
+                                        sharedTransitionScope = this@SharedTransitionLayout,
+                                        onExpand = {
+                                            val title = mediaController?.currentMediaItem?.mediaMetadata?.title?.toString()
+                                            val artist = mediaController?.currentMediaItem?.mediaMetadata?.artist?.toString()
+                                            if (!title.isNullOrBlank()) {
+                                                viewModel.fetchLyrics(title, artist ?: "")
+                                            }
+                                            showFullScreenPlayer = true
+                                        }
                                     )
+                                    if (!isWideScreen) {
+                                        NavigationBar(
+                                            containerColor = Color.Transparent,
+                                            contentColor = Color.White
+                                        ) {
+                                            NavigationBarItem(
+                                                icon = { Icon(Icons.Rounded.Search, contentDescription = "Buscar", modifier = Modifier.size(28.dp)) },
+                                                label = { Text("Buscar", style = MaterialTheme.typography.labelSmall) },
+                                                selected = selectedTab == 0,
+                                                onClick = { selectedTab = 0 },
+                                                colors = NavigationBarItemDefaults.colors(
+                                                    indicatorColor = Color.Transparent,
+                                                    selectedIconColor = Color.White,
+                                                    selectedTextColor = Color.White,
+                                                    unselectedIconColor = Color.White.copy(alpha = 0.5f),
+                                                    unselectedTextColor = Color.White.copy(alpha = 0.5f)
+                                                )
+                                            )
+                                            NavigationBarItem(
+                                                icon = { Icon(Icons.Rounded.LibraryMusic, contentDescription = "Tu biblioteca", modifier = Modifier.size(28.dp)) },
+                                                label = { Text("Tu biblioteca", style = MaterialTheme.typography.labelSmall) },
+                                                selected = selectedTab == 1,
+                                                onClick = { 
+                                                    selectedTab = 1
+                                                    checkAndRequestPermissions()
+                                                },
+                                                colors = NavigationBarItemDefaults.colors(
+                                                    indicatorColor = Color.Transparent,
+                                                    selectedIconColor = Color.White,
+                                                    selectedTextColor = Color.White,
+                                                    unselectedIconColor = Color.White.copy(alpha = 0.5f),
+                                                    unselectedTextColor = Color.White.copy(alpha = 0.5f)
+                                                )
+                                            )
+                                            NavigationBarItem(
+                                                icon = { Icon(Icons.Rounded.Person, contentDescription = "Perfil", modifier = Modifier.size(28.dp)) },
+                                                label = { Text("Perfil", style = MaterialTheme.typography.labelSmall) },
+                                                selected = selectedTab == 2,
+                                                onClick = { selectedTab = 2 },
+                                                colors = NavigationBarItemDefaults.colors(
+                                                    indicatorColor = Color.Transparent,
+                                                    selectedIconColor = Color.White,
+                                                    selectedTextColor = Color.White,
+                                                    unselectedIconColor = Color.White.copy(alpha = 0.5f),
+                                                    unselectedTextColor = Color.White.copy(alpha = 0.5f)
+                                                )
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        ) { padding ->
+                            Row(modifier = Modifier.fillMaxSize().padding(padding)) {
+                                if (isWideScreen) {
+                                    NavigationRail(
+                                        containerColor = MaterialTheme.colorScheme.background,
+                                        contentColor = activeColor
+                                    ) {
+                                        NavigationRailItem(
+                                            icon = { Icon(Icons.Rounded.Search, contentDescription = "Online") },
+                                            label = { Text("Online") },
+                                            selected = selectedTab == 0,
+                                            onClick = { selectedTab = 0 },
+                                            colors = NavigationRailItemDefaults.colors(indicatorColor = activeColor.copy(alpha = 0.2f), selectedIconColor = activeColor, selectedTextColor = activeColor)
+                                        )
+                                        NavigationRailItem(
+                                            icon = { Icon(Icons.Rounded.LibraryMusic, contentDescription = "Local") },
+                                            label = { Text("Local") },
+                                            selected = selectedTab == 1,
+                                            onClick = { 
+                                                selectedTab = 1
+                                                checkAndRequestPermissions()
+                                            },
+                                            colors = NavigationRailItemDefaults.colors(indicatorColor = activeColor.copy(alpha = 0.2f), selectedIconColor = activeColor, selectedTextColor = activeColor)
+                                        )
+                                        NavigationRailItem(
+                                            icon = { Icon(Icons.Rounded.Person, contentDescription = "Profile") },
+                                            label = { Text("Profile") },
+                                            selected = selectedTab == 2,
+                                            onClick = { selectedTab = 2 },
+                                            colors = NavigationRailItemDefaults.colors(indicatorColor = activeColor.copy(alpha = 0.2f), selectedIconColor = activeColor, selectedTextColor = activeColor)
+                                        )
+                                    }
+                                }
+                                Box(modifier = Modifier.weight(1f)) {
+                                    androidx.compose.animation.AnimatedContent(
+                                        targetState = selectedTab,
+                                        transitionSpec = {
+                                            androidx.compose.animation.slideInHorizontally { width -> if (targetState > initialState) width else -width } + androidx.compose.animation.fadeIn() togetherWith
+                                            androidx.compose.animation.slideOutHorizontally { width -> if (targetState > initialState) -width else width } + androidx.compose.animation.fadeOut()
+                                        },
+                                        label = "TabTransition"
+                                    ) { tab ->
+                                        when (tab) {
+                                            0 -> MainScreen(
+                                                viewModel = viewModel,
+                                                profileViewModel = profileViewModel,
+                                                controller = mediaController,
+                                                onColorExtracted = { color -> dominantColor = color },
+                                                dominantColor = activeColor
+                                            )
+                                            1 -> LocalMusicScreen(mainViewModel = viewModel, 
+                                                viewModel = localMusicViewModel,
+                                                controller = mediaController,
+                                                dominantColor = activeColor
+                                            )
+                                            2 -> ProfileScreen(
+                                                viewModel = profileViewModel,
+                                                dominantColor = activeColor,
+                                                onOpenEqualizer = { showEqualizer = true }
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }
-                    }
+                        
+                        androidx.compose.animation.AnimatedVisibility(
+                            visible = showFullScreenPlayer,
+                            enter = androidx.compose.animation.slideInVertically(
+                                initialOffsetY = { it }
+                            ),
+                            exit = androidx.compose.animation.slideOutVertically(
+                                targetOffsetY = { it }
+                            )
+                        ) {
+                            FullScreenPlayer(viewModel = viewModel, 
+                                controller = mediaController,
+                                dominantColor = activeColor,
+                                sharedTransitionScope = this@SharedTransitionLayout,
+                                animatedVisibilityScope = this,
+                                onClose = { showFullScreenPlayer = false }
+                            )
+                        }
+
+                        if (showEqualizer) {
+                            AudioSettingsBottomSheet(controller = mediaController) {
+                                showEqualizer = false
+                            }
+                        }
+                  }
                 }
             }
         }
     }
-
-    override fun onStart() {
-        super.onStart()
-        val sessionToken = SessionToken(this, ComponentName(this, PlaybackService::class.java))
-        controllerFuture = MediaController.Builder(this, sessionToken).buildAsync()
-        controllerFuture?.addListener(
-            {
-                mediaController = controllerFuture?.get()
-            },
-            MoreExecutors.directExecutor()
-        )
     }
 
     private fun checkAndRequestPermissions() {
@@ -223,13 +320,13 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    override fun onStop() {
-        super.onStop()
-        controllerFuture?.let { MediaController.releaseFuture(it) }
+    override fun onDestroy() {
+        super.onDestroy()
+        controllerFuture?.let { androidx.media3.session.MediaController.releaseFuture(it) }
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, androidx.compose.animation.ExperimentalSharedTransitionApi::class)
 @Composable
 fun MainScreen(
     viewModel: MainViewModel,
@@ -242,273 +339,131 @@ fun MainScreen(
     val downloadState by viewModel.downloadState.collectAsStateWithLifecycle()
     val searchState by viewModel.searchState.collectAsStateWithLifecycle()
     val context = LocalContext.current
-    var isVideoMode by remember { mutableStateOf(false) }
     val userStats by profileViewModel.userStats.collectAsStateWithLifecycle()
 
-    // Media State
-    var isPlaying by remember { mutableStateOf(false) }
-    var currentPosition by remember { mutableStateOf(0L) }
-    var duration by remember { mutableStateOf(0L) }
-
-    LaunchedEffect(controller) {
-        if (controller == null) return@LaunchedEffect
-        controller.addListener(object : Player.Listener {
-            override fun onIsPlayingChanged(playing: Boolean) {
-                isPlaying = playing
-            }
-            override fun onPlaybackStateChanged(playbackState: Int) {
-                if (playbackState == Player.STATE_READY) {
-                    duration = controller.duration.coerceAtLeast(0L)
+    LaunchedEffect(downloadState) {
+        val state = downloadState
+        if (state is com.example.viewmodel.DownloadState.Success) {
+            if (state.action == "play") {
+                val mediaItem = androidx.media3.common.MediaItem.Builder()
+                    .setUri(state.url)
+                    .setMediaMetadata(
+                        androidx.media3.common.MediaMetadata.Builder()
+                            .setTitle(state.title)
+                            .setArtist(state.title) // Fallback if artist not fully parsed
+                            .build()
+                    ).build()
+                controller?.setMediaItem(mediaItem)
+                controller?.prepare()
+                controller?.play()
+                
+                // Extract color if needed
+                if (state.thumbnail != null) {
+                    val request = coil.request.ImageRequest.Builder(context)
+                        .data(state.thumbnail)
+                        .allowHardware(false)
+                        .build()
+                    val result = coil.ImageLoader(context).execute(request)
+                    if (result is coil.request.SuccessResult) {
+                        val bitmap = (result.drawable as? android.graphics.drawable.BitmapDrawable)?.bitmap
+                        if (bitmap != null) {
+                            androidx.palette.graphics.Palette.from(bitmap).generate { palette ->
+                                palette?.dominantSwatch?.rgb?.let { colorInt ->
+                                    onColorExtracted(Color(colorInt))
+                                }
+                            }
+                        }
+                    }
                 }
+            } else if (state.action == "download") {
+                com.example.data.Downloader.downloadMp3(context, state.url, state.title)
+                profileViewModel.recordDownload()
             }
-        })
-    }
-    
-    LaunchedEffect(controller, isPlaying) {
-        if (controller == null || !isPlaying) return@LaunchedEffect
-        var secondsAccumulated = 0L
-        while (isPlaying) {
-            currentPosition = controller.currentPosition.coerceAtLeast(0L)
-            secondsAccumulated++
-            if (secondsAccumulated >= 5) {
-                profileViewModel.recordListeningTime(5)
-                secondsAccumulated = 0
-            }
-            delay(1000)
+            viewModel.resetState() // Go back to idle to hide loading
         }
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp)
-            .statusBarsPadding(),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        OutlinedTextField(
-            value = urlInput,
-            onValueChange = { urlInput = it },
-            label = { Text("Search Tracks (Spotify/YT)") },
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(32.dp),
-            singleLine = true,
-            trailingIcon = {
-                IconButton(onClick = { viewModel.searchITunes(urlInput) }) {
-                    Icon(Icons.Rounded.Search, contentDescription = "Search")
-                }
-            },
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = dominantColor ?: MaterialTheme.colorScheme.primary,
-                focusedLabelColor = dominantColor ?: MaterialTheme.colorScheme.primary
+    Column(modifier = Modifier.fillMaxSize()) {
+        // Search Header
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Color(0xFF121212))
+                .padding(horizontal = 16.dp, vertical = 8.dp)
+        ) {
+            TextField(
+                value = urlInput,
+                onValueChange = { urlInput = it },
+                placeholder = { Text("¿Qué quieres escuchar?", color = Color.White.copy(alpha = 0.5f), style = MaterialTheme.typography.bodyLarge) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(8.dp)),
+                leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = "Search", tint = Color.White) },
+                singleLine = true,
+                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Search),
+                keyboardActions = androidx.compose.foundation.text.KeyboardActions(
+                    onSearch = {
+                        if (urlInput.isNotBlank()) viewModel.searchITunes(urlInput)
+                    }
+                ),
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = Color(0xFF242424),
+                    unfocusedContainerColor = Color(0xFF242424),
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent,
+                    focusedTextColor = Color.White,
+                    unfocusedTextColor = Color.White,
+                    cursorColor = Color.White
+                )
             )
-        )
+        }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Box(modifier = Modifier.weight(1f)) {
+            val sState = searchState
+            val dlState = downloadState
 
-        androidx.compose.animation.AnimatedContent(
-            targetState = Pair(downloadState, searchState),
-            label = "ScreenStateTransition",
-            modifier = Modifier.fillMaxSize()
-        ) { (dlState, sState) ->
-            if (dlState is DownloadState.Loading || sState is com.example.viewmodel.SearchState.Loading) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = dominantColor ?: MaterialTheme.colorScheme.primary)
-                }
-            } else if (dlState is DownloadState.Success) {
-                val thumbnailUrl = dlState.thumbnail
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("Audio")
-                        Switch(
-                            checked = isVideoMode,
-                            onCheckedChange = { isVideoMode = it },
-                            modifier = Modifier.padding(horizontal = 8.dp),
-                            colors = SwitchDefaults.colors(
-                                checkedThumbColor = dominantColor ?: MaterialTheme.colorScheme.primary,
-                                checkedTrackColor = (dominantColor ?: MaterialTheme.colorScheme.primary).copy(alpha = 0.5f)
-                            )
-                        )
-                        Text("Video")
-                    }
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .aspectRatio(16f / 9f)
-                            .clip(RoundedCornerShape(32.dp))
-                            .background(Color.Black)
-                    ) {
-                        androidx.compose.animation.AnimatedContent(
-                            targetState = isVideoMode,
-                            label = "MediaModeTransition"
-                        ) { isVideo ->
-                            if (isVideo) {
-                                if (controller != null) {
-                                    AndroidView(
-                                        factory = { ctx ->
-                                            androidx.media3.ui.PlayerView(ctx).apply {
-                                                player = controller
-                                                useController = false
-                                            }
-                                        },
-                                        modifier = Modifier.fillMaxSize()
-                                    )
-                                }
-                            } else {
-                                coil.compose.AsyncImage(
-                                    model = coil.request.ImageRequest.Builder(context)
-                                        .data(thumbnailUrl)
-                                        .crossfade(true)
-                                        .allowHardware(false)
-                                        .build(),
-                                    contentDescription = "Thumbnail",
-                                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                                    modifier = Modifier.fillMaxSize(),
-                                    onSuccess = { result ->
-                                        val bitmap = result.result.drawable.toBitmap()
-                                        androidx.palette.graphics.Palette.from(bitmap).generate { palette ->
-                                            palette?.dominantSwatch?.rgb?.let { colorInt ->
-                                                onColorExtracted(Color(colorInt))
-                                            }
-                                        }
-                                    }
-                                )
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(24.dp))
-
-                    Text(
-                        text = dlState.title,
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 2
-                    )
-
-                    Spacer(modifier = Modifier.height(24.dp))
-
-                    Slider(
-                        value = if (duration > 0) currentPosition.toFloat() / duration.toFloat() else 0f,
-                        onValueChange = {
-                            if (duration > 0) {
-                                controller?.seekTo((it * duration).toLong())
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = SliderDefaults.colors(
-                            thumbColor = dominantColor ?: MaterialTheme.colorScheme.primary,
-                            activeTrackColor = dominantColor ?: MaterialTheme.colorScheme.primary
-                        )
-                    )
-
-                    Row(
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        FloatingActionButton(
-                            onClick = {
-                                if (controller != null) {
-                                    if (controller.playbackState == androidx.media3.common.Player.STATE_IDLE || controller.playbackState == androidx.media3.common.Player.STATE_ENDED) {
-                                        val mediaItem = androidx.media3.common.MediaItem.Builder().setUri(dlState.url).setMediaMetadata(androidx.media3.common.MediaMetadata.Builder().setTitle(dlState.title).build()).build()
-                                        controller.setMediaItem(mediaItem)
-                                        controller.prepare()
-                                        controller.play()
-                                    } else {
-                                        if (controller.isPlaying) controller.pause() else controller.play()
-                                    }
-                                }
-                            },
-                            shape = RoundedCornerShape(32.dp),
-                            containerColor = dominantColor ?: MaterialTheme.colorScheme.primaryContainer,
-                            modifier = Modifier.size(80.dp)
-                        ) {
-                            androidx.compose.animation.AnimatedContent(targetState = isPlaying, label = "PlayPause") { playing ->
-                                Icon(
-                                    imageVector = if (playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
-                                    contentDescription = "Play/Pause",
-                                    modifier = Modifier.size(48.dp)
-                                )
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(32.dp))
-
-                    Row {
-                        Button(
-                            onClick = {
-                                val mediaItem = androidx.media3.common.MediaItem.Builder().setUri(dlState.url).setMediaMetadata(androidx.media3.common.MediaMetadata.Builder().setTitle(dlState.title).build()).build()
-                                controller?.setMediaItem(mediaItem)
-                                controller?.prepare()
-                                controller?.play()
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = dominantColor ?: MaterialTheme.colorScheme.primary)
-                        ) {
-                            Text("Play Online")
-                        }
-                        Spacer(modifier = Modifier.width(16.dp))
-                        Button(
-                            onClick = { 
-                                com.example.data.Downloader.downloadMp3(context, dlState.url, dlState.title)
-                                profileViewModel.recordDownload()
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
-                        ) {
-                            Icon(Icons.Rounded.Download, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Download")
-                        }
-                    }
-                }
-            } else if (sState is com.example.viewmodel.SearchState.Success) {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize()
+            if (sState is com.example.viewmodel.SearchState.Success) {
+                LazyVerticalGrid(
+                    columns = GridCells.Adaptive(minSize = 350.dp),
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(bottom = 100.dp)
                 ) {
-                    items(sState.results) { track ->
-                        Card(
+                    items(sState.results.size) { index ->
+                        val track = sState.results[index]
+                        Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(vertical = 4.dp),
-                            shape = RoundedCornerShape(16.dp),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                            onClick = {
-                                viewModel.selectTrack(track.trackName ?: "", track.artistName ?: "", userStats.apiPreference)
-                            }
+                                .clickable { viewModel.playFromRemotePlaylist(sState.results, index, userStats.apiPreference) }
+                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Row(
-                                modifier = Modifier.padding(12.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                coil.compose.AsyncImage(
-                                    model = track.artworkUrl100,
-                                    contentDescription = null,
-                                    modifier = Modifier
-                                        .size(56.dp)
-                                        .clip(RoundedCornerShape(8.dp))
-                                )
-                                Spacer(modifier = Modifier.width(16.dp))
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(text = track.trackName ?: "Unknown", fontWeight = FontWeight.Bold, maxLines = 1)
-                                    Text(text = track.artistName ?: "Unknown", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
-                                }
-                                Icon(Icons.Rounded.PlayArrow, contentDescription = "Select", tint = dominantColor ?: MaterialTheme.colorScheme.primary)
+                            coil.compose.AsyncImage(
+                                model = track.artworkUrl100,
+                                contentDescription = null,
+                                modifier = Modifier
+                                    .size(56.dp)
+                                    .clip(RoundedCornerShape(4.dp))
+                            )
+                            Spacer(modifier = Modifier.width(16.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(text = track.trackName ?: "Unknown", color = Color.White, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Normal, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(text = "Canción • ${track.artistName ?: "Unknown"}", style = MaterialTheme.typography.bodyMedium, color = Color.White.copy(alpha = 0.6f), maxLines = 1, overflow = TextOverflow.Ellipsis)
                             }
+                            IconButton(onClick = {
+                                viewModel.selectTrack(track.trackName ?: "", track.artistName ?: "", userStats.apiPreference, "download")
+                            }) {
+                                Icon(Icons.Rounded.Download, contentDescription = "Download", tint = Color.White.copy(alpha = 0.6f))
+                            }
+
                         }
                     }
-                }
-            } else if (dlState is DownloadState.Error) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text(dlState.message, color = MaterialTheme.colorScheme.error)
                 }
             } else if (sState is com.example.viewmodel.SearchState.Error) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text(sState.message, color = MaterialTheme.colorScheme.error)
                 }
-            } else {
+            } else if (sState is com.example.viewmodel.SearchState.Idle) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Icon(Icons.Rounded.Search, contentDescription = null, modifier = Modifier.size(64.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
@@ -517,8 +472,32 @@ fun MainScreen(
                     }
                 }
             }
+
+            // Overlay for Download/Play Loading or Error
+            if (dlState is com.example.viewmodel.DownloadState.Loading || sState is com.example.viewmodel.SearchState.Loading) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.3f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator(color = dominantColor ?: MaterialTheme.colorScheme.primary)
+                }
+            } else if (dlState is com.example.viewmodel.DownloadState.Error) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.3f))
+                        .clickable { viewModel.resetState() }, // Click to dismiss
+                    contentAlignment = Alignment.Center
+                ) {
+                    Card(modifier = Modifier.padding(16.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
+                        Text(dlState.message, color = MaterialTheme.colorScheme.onErrorContainer, modifier = Modifier.padding(16.dp))
+                    }
+                }
+            }
         }
     }
+
+
 }
-
-
