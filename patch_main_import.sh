@@ -1,0 +1,1 @@
+sed -i 's/import com.example.ui.components.LyricsBottomSheet/import com.example.ui.components.LyricsBottomSheet\nimport com.example.ui.components.AudioSettingsBottomSheet/g' app/src/main/java/com/example/MainActivity.kt

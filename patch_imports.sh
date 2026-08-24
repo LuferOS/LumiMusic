@@ -1,0 +1,3 @@
+sed -i 's/import com.example.ui.screens.ProfileScreen/import com.example.ui.screens.ProfileScreen\nimport com.example.ui.screens.LocalMusicScreen/g' app/src/main/java/com/example/MainActivity.kt
+sed -i 's/import androidx.compose.foundation.verticalScroll/import androidx.compose.foundation.verticalScroll\nimport androidx.compose.foundation.horizontalScroll/g' app/src/main/java/com/example/ui/screens/ProfileScreen.kt
+sed -i 's/import androidx.compose.foundation.layout.*/import androidx.compose.foundation.layout.*\nimport androidx.compose.foundation.background/g' app/src/main/java/com/example/ui/screens/LocalMusicScreen.kt

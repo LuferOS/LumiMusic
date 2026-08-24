@@ -1,10 +1,20 @@
 package com.example.ui.screens
 
+import androidx.core.content.FileProvider
+import java.io.File
+import java.io.FileInputStream
+import java.io.FileOutputStream
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+
+import android.content.Intent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
@@ -14,6 +24,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -24,11 +35,13 @@ import com.example.ui.theme.neonGlow
 @Composable
 fun ProfileScreen(
     viewModel: ProfileViewModel,
-    dominantColor: Color?
+    dominantColor: Color?,
+    onOpenEqualizer: () -> Unit
 ) {
     val stats by viewModel.userStats.collectAsStateWithLifecycle()
     var showEditDialog by remember { mutableStateOf(false) }
     var showAppearanceDialog by remember { mutableStateOf(false) }
+    val context = LocalContext.current
 
     val applyNeon = stats.neonBorders
 
@@ -71,7 +84,8 @@ fun ProfileScreen(
         )
         
         Spacer(modifier = Modifier.height(16.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        // Top Action Row
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.horizontalScroll(rememberScrollState())) {
             Button(
                 onClick = { showEditDialog = true },
                 colors = ButtonDefaults.buttonColors(containerColor = dominantColor ?: MaterialTheme.colorScheme.primary),
@@ -90,6 +104,32 @@ fun ProfileScreen(
                 Icon(Icons.Rounded.Palette, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(modifier = Modifier.width(8.dp))
                 Text("Theme")
+            }
+        }
+        
+        Spacer(modifier = Modifier.height(8.dp))
+        // Bottom Action Row
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.horizontalScroll(rememberScrollState())) {
+            Button(
+                onClick = onOpenEqualizer,
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.tertiary),
+                modifier = Modifier.neonGlow(MaterialTheme.colorScheme.tertiary, 24.dp, 20f, applyNeon)
+            ) {
+                Icon(Icons.Rounded.GraphicEq, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Equalizer")
+            }
+            
+            Button(
+                onClick = {
+                    shareApk(context)
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50)),
+                modifier = Modifier.neonGlow(Color(0xFF4CAF50), 24.dp, 20f, applyNeon)
+            ) {
+                Icon(Icons.Rounded.Share, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Share App (.APK)")
             }
         }
 
@@ -225,7 +265,7 @@ fun ProfileScreen(
                             Text(name)
                         }
                     }
-                    Divider(modifier = Modifier.padding(vertical = 8.dp))
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                     Text("Background", style = MaterialTheme.typography.labelLarge)
                     bgColors.forEach { (hex, name) ->
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -233,7 +273,7 @@ fun ProfileScreen(
                             Text(name)
                         }
                     }
-                    Divider(modifier = Modifier.padding(vertical = 8.dp))
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                     Text("Typography", style = MaterialTheme.typography.labelLarge)
                     fonts.forEach { font ->
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -241,7 +281,7 @@ fun ProfileScreen(
                             Text(font)
                         }
                     }
-                    Divider(modifier = Modifier.padding(vertical = 8.dp))
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Checkbox(checked = isNeon, onCheckedChange = { isNeon = it })
                         Text("Enable Neon Glowing Borders")
@@ -335,5 +375,49 @@ fun calculateLevel(seconds: Long): String {
         hours < 50 -> "Fanatic"
         hours < 100 -> "Audiophile"
         else -> "Legend"
+    }
+}
+
+fun shareApk(context: android.content.Context) {
+    CoroutineScope(Dispatchers.IO).launch {
+        try {
+            val appInfo = context.applicationInfo
+            val srcFile = File(appInfo.sourceDir)
+            
+            val cachePath = File(context.cacheDir, "shared_apks")
+            if (!cachePath.exists()) {
+                cachePath.mkdirs()
+            }
+            
+            val destFile = File(cachePath, "LumiMusic.apk")
+            
+            // Copy APK to cache directory
+            FileInputStream(srcFile).use { input ->
+                FileOutputStream(destFile).use { output ->
+                    input.copyTo(output)
+                }
+            }
+            
+            // Get URI using FileProvider
+            val apkUri = FileProvider.getUriForFile(
+                context,
+                "${context.packageName}.fileprovider",
+                destFile
+            )
+            
+            val intent = Intent(Intent.ACTION_SEND).apply {
+                type = "application/vnd.android.package-archive"
+                putExtra(Intent.EXTRA_STREAM, apkUri)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            
+            context.startActivity(Intent.createChooser(intent, "Share Application APK").apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            })
+            
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 }

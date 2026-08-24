@@ -44,6 +44,7 @@ import androidx.compose.foundation.lazy.items
 import com.example.viewmodel.LocalMusicViewModel
 import com.example.viewmodel.ProfileViewModel
 import com.example.ui.screens.ProfileScreen
+import com.example.ui.screens.LocalMusicScreen
 import androidx.compose.material.icons.filled.*
 import android.Manifest
 import android.content.pm.PackageManager
@@ -56,6 +57,7 @@ import kotlinx.coroutines.delay
 
 import com.example.ui.components.MiniPlayer
 import com.example.ui.components.LyricsBottomSheet
+import com.example.ui.components.AudioSettingsBottomSheet
 
 class MainActivity : ComponentActivity() {
     private val viewModel: MainViewModel by viewModels()
@@ -98,10 +100,17 @@ class MainActivity : ComponentActivity() {
                     color = MaterialTheme.colorScheme.background
                 ) {
                     var selectedTab by remember { mutableStateOf(0) }
+                    var showEqualizer by remember { mutableStateOf(false) }
 
                     if (showLyrics) {
                         LyricsBottomSheet(viewModel = viewModel) {
                             showLyrics = false
+                        }
+                    }
+
+                    if (showEqualizer) {
+                        AudioSettingsBottomSheet(controller = mediaController) {
+                            showEqualizer = false
                         }
                     }
 
@@ -176,7 +185,8 @@ class MainActivity : ComponentActivity() {
                                     )
                                     2 -> ProfileScreen(
                                         viewModel = profileViewModel,
-                                        dominantColor = activeColor
+                                        dominantColor = activeColor,
+                                        onOpenEqualizer = { showEqualizer = true }
                                     )
                                 }
                             }
@@ -511,167 +521,4 @@ fun MainScreen(
     }
 }
 
-@Composable
-fun LocalMusicScreen(
-    viewModel: LocalMusicViewModel,
-    controller: MediaController?,
-    dominantColor: Color?
-) {
-    val musicList by viewModel.localMusicList.collectAsStateWithLifecycle()
-    var searchQuery by remember { mutableStateOf("") }
-    var sortType by remember { mutableStateOf(0) } // 0: Title A-Z, 1: Title Z-A, 2: Artist A-Z
-    
-    val baseFilteredList = if (searchQuery.isBlank()) {
-        musicList
-    } else {
-        musicList.filter { it.title.contains(searchQuery, ignoreCase = true) || it.artist.contains(searchQuery, ignoreCase = true) }
-    }
-
-    val filteredList = when(sortType) {
-        0 -> baseFilteredList.sortedBy { it.title }
-        1 -> baseFilteredList.sortedByDescending { it.title }
-        2 -> baseFilteredList.sortedBy { it.artist }
-        else -> baseFilteredList
-    }
-
-    Column(modifier = Modifier.fillMaxSize()) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text(
-                text = "Local Music",
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold
-            )
-            Row {
-                IconButton(onClick = { sortType = (sortType + 1) % 3 }) {
-                    Icon(
-                        imageVector = if (sortType == 2) Icons.Rounded.Person else Icons.Rounded.SortByAlpha,
-                        contentDescription = "Sort",
-                        tint = dominantColor ?: MaterialTheme.colorScheme.primary
-                    )
-                }
-                IconButton(
-                    onClick = {
-                        if (filteredList.isNotEmpty() && controller != null) {
-                            val shuffled = filteredList.shuffled()
-                            controller.clearMediaItems()
-                            shuffled.forEach { audio ->
-                                controller.addMediaItem(androidx.media3.common.MediaItem.Builder().setUri(audio.uri).setMediaMetadata(androidx.media3.common.MediaMetadata.Builder().setTitle(audio.title).setArtist(audio.artist).build()).build())
-                            }
-                            controller.shuffleModeEnabled = false // We already shuffled the list
-                            controller.prepare()
-                            controller.play()
-                        }
-                    }
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.Shuffle,
-                        contentDescription = "Shuffle Play",
-                        tint = dominantColor ?: MaterialTheme.colorScheme.primary
-                    )
-                }
-            }
-        }
-        
-        OutlinedTextField(
-            value = searchQuery,
-            onValueChange = { searchQuery = it },
-            label = { Text("Search local tracks (Title/Artist)") },
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp),
-            shape = RoundedCornerShape(32.dp),
-            singleLine = true,
-            leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) },
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = dominantColor ?: MaterialTheme.colorScheme.primary,
-                focusedLabelColor = dominantColor ?: MaterialTheme.colorScheme.primary
-            )
-        )
-        
-        Spacer(modifier = Modifier.height(8.dp))
-
-        if (musicList.isEmpty()) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("No local music found.")
-            }
-        } else {
-            androidx.compose.animation.AnimatedContent(
-                targetState = filteredList.isEmpty(),
-                label = "LocalSearchTransition"
-            ) { empty ->
-                if (empty) {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text("No matching tracks found.")
-                    }
-                } else {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(16.dp)
-                    ) {
-                        items(filteredList, key = { it.id }) { audio ->
-                            Card(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 8.dp),
-                                shape = RoundedCornerShape(24.dp),
-                                colors = CardDefaults.cardColors(
-                                    containerColor = MaterialTheme.colorScheme.surfaceVariant
-                                ),
-                                onClick = {
-                                    val mediaItem = androidx.media3.common.MediaItem.Builder().setUri(audio.uri).setMediaMetadata(androidx.media3.common.MediaMetadata.Builder().setTitle(audio.title).setArtist(audio.artist).build()).build()
-                                    controller?.setMediaItem(mediaItem)
-                                    controller?.prepare()
-                                    controller?.play()
-                                }
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(16.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(
-                                        Icons.Rounded.MusicNote,
-                                        contentDescription = null,
-                                        modifier = Modifier
-                                            .size(48.dp)
-                                            .background(
-                                                dominantColor ?: MaterialTheme.colorScheme.primaryContainer,
-                                                shape = RoundedCornerShape(16.dp)
-                                            )
-                                            .padding(12.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(16.dp))
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            text = audio.title,
-                                            style = MaterialTheme.typography.titleMedium,
-                                            fontWeight = FontWeight.Bold,
-                                            maxLines = 1
-                                        )
-                                        Text(
-                                            text = audio.artist,
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            maxLines = 1
-                                        )
-                                    }
-                                    Icon(
-                                        Icons.Rounded.PlayArrow,
-                                        contentDescription = "Play",
-                                        tint = dominantColor ?: MaterialTheme.colorScheme.primary
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
 
