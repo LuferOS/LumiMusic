@@ -144,7 +144,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _downloadState.value = DownloadState.Idle
         viewModelScope.launch {
             try {
-                val response = iTunesApi.searchTracks(term = query)
+                val response = withContext(Dispatchers.IO) { iTunesApi.searchTracks(term = query) }
                 _searchState.value = SearchState.Success(response.results)
             } catch (e: Exception) {
                 _searchState.value = SearchState.Error(e.localizedMessage ?: "Error searching tracks")
@@ -159,7 +159,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 var success = false
                 
-                suspend fun tryYouTube(): Boolean {
+                suspend fun tryYouTube(): Boolean = withContext(Dispatchers.IO) {
                     try {
                         val ytRes = api.searchYouTube(query = fullQuery)
                         if (ytRes.status && ytRes.data?.downloadUrl != null) {
@@ -169,13 +169,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                                 thumbnail = ytRes.data.thumbnail,
                                 action = action
                             )
-                            return true
+                            return@withContext true
                         }
                     } catch (e: Exception) {}
-                    return false
+                    return@withContext false
                 }
                 
-                suspend fun trySpotify(): Boolean {
+                suspend fun trySpotify(): Boolean = withContext(Dispatchers.IO) {
                     try {
                         val spotRes = api.searchSpotify(query = fullQuery)
                         if (spotRes.status && spotRes.data?.downloadUrl != null) {
@@ -185,10 +185,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                                 thumbnail = spotRes.data.cover,
                                 action = action
                             )
-                            return true
+                            return@withContext true
                         }
                     } catch (e: Exception) {}
-                    return false
+                    return@withContext false
                 }
                 
                 if (apiPref == "YouTube") {

@@ -79,12 +79,24 @@ interface AlyaCoreApi {
 
     companion object {
         const val BASE_URL = "https://api.alyacore.xyz/"
+        private var instance: AlyaCoreApi? = null
+        
         fun create(): AlyaCoreApi {
-            val retrofit = Retrofit.Builder()
-                .baseUrl(BASE_URL)
-                .addConverterFactory(MoshiConverterFactory.create())
-                .build()
-            return retrofit.create(AlyaCoreApi::class.java)
+            if (instance == null) {
+                val okHttpClient = okhttp3.OkHttpClient.Builder()
+                    .connectTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+                    .readTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+                    .writeTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+                    .build()
+                    
+                val retrofit = Retrofit.Builder()
+                    .baseUrl(BASE_URL)
+                    .client(okHttpClient)
+                    .addConverterFactory(MoshiConverterFactory.create())
+                    .build()
+                instance = retrofit.create(AlyaCoreApi::class.java)
+            }
+            return instance!!
         }
     }
 }

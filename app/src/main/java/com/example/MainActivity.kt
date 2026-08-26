@@ -21,6 +21,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -74,9 +75,15 @@ class MainActivity : ComponentActivity() {
     private var mediaController: MediaController? by mutableStateOf(null)
 
     private val requestPermissionLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { isGranted: Boolean ->
-        if (isGranted) {
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val mediaPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            Manifest.permission.READ_MEDIA_AUDIO
+        } else {
+            Manifest.permission.READ_EXTERNAL_STORAGE
+        }
+        
+        if (permissions[mediaPermission] == true) {
             localMusicViewModel.loadLocalMusic(this)
         }
     }
@@ -307,16 +314,27 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun checkAndRequestPermissions() {
-        val permission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        val permissionsToRequest = mutableListOf<String>()
+        val mediaPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             Manifest.permission.READ_MEDIA_AUDIO
         } else {
             Manifest.permission.READ_EXTERNAL_STORAGE
         }
-
-        if (ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED) {
-            localMusicViewModel.loadLocalMusic(this)
+        
+        if (ContextCompat.checkSelfPermission(this, mediaPermission) != PackageManager.PERMISSION_GRANTED) {
+            permissionsToRequest.add(mediaPermission)
         } else {
-            requestPermissionLauncher.launch(permission)
+            localMusicViewModel.loadLocalMusic(this)
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                permissionsToRequest.add(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
+        
+        if (permissionsToRequest.isNotEmpty()) {
+            requestPermissionLauncher.launch(permissionsToRequest.toTypedArray())
         }
     }
 
@@ -465,23 +483,63 @@ fun MainScreen(
                 }
             } else if (sState is com.example.viewmodel.SearchState.Idle) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(Icons.Rounded.Search, contentDescription = null, modifier = Modifier.size(64.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text("Search for your favorite tracks", color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(32.dp)) {
+                        Icon(
+                            Icons.Rounded.Search, 
+                            contentDescription = null, 
+                            modifier = Modifier.size(80.dp), 
+                            tint = Color.White.copy(alpha = 0.2f)
+                        )
+                        Spacer(modifier = Modifier.height(24.dp))
+                        Text(
+                            "Busca tus canciones favoritas", 
+                            color = Color.White.copy(alpha = 0.6f),
+                            style = MaterialTheme.typography.titleMedium,
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            "Escribe el nombre de un artista, canción o pódcast para empezar a escuchar en Alya Core.", 
+                            color = Color.White.copy(alpha = 0.4f),
+                            style = MaterialTheme.typography.bodyMedium,
+                            textAlign = TextAlign.Center
+                        )
                     }
                 }
             }
 
             // Overlay for Download/Play Loading or Error
             if (dlState is com.example.viewmodel.DownloadState.Loading || sState is com.example.viewmodel.SearchState.Loading) {
+                val loadingQuote = remember(dlState, sState) {
+                    listOf(
+                        "Alya Core hizo posible esta aplicación gracias a su API de Gran velocidad.",
+                        "Sabias que está aplicación fue una idea que de la nada se me ocurrió mientras veía una silla",
+                        "La aplicación demoró 5 días en armarse, no esperaba la verdad demasiado."
+                    ).random()
+                }
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .background(Color.Black.copy(alpha = 0.3f)),
+                        .background(Color.Black.copy(alpha = 0.6f)),
                     contentAlignment = Alignment.Center
                 ) {
-                    CircularProgressIndicator(color = dominantColor ?: MaterialTheme.colorScheme.primary)
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier
+                            .padding(32.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.9f))
+                            .padding(24.dp)
+                    ) {
+                        CircularProgressIndicator(color = dominantColor ?: MaterialTheme.colorScheme.primary)
+                        Spacer(modifier = Modifier.height(24.dp))
+                        Text(
+                            text = loadingQuote,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            textAlign = TextAlign.Center,
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                    }
                 }
             } else if (dlState is com.example.viewmodel.DownloadState.Error) {
                 Box(

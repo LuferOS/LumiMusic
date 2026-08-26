@@ -113,6 +113,36 @@ fun ProfileScreen(
                     subtitle = "Comparte la aplicación APK",
                     onClick = { shareApk(context) }
                 )
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = "LumiMusic v1.0",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color.White.copy(alpha = 0.5f)
+                    )
+                    Text(
+                        text = "IMPULSADO POR ALYA CORE API GRACIAS ANDER POR TU API❤️‍🩹",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color.White.copy(alpha = 0.7f),
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        modifier = Modifier.padding(vertical = 4.dp, horizontal = 16.dp)
+                    )
+                    Text(
+                        text = "Creado por LuferOS",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.White.copy(alpha = 0.4f)
+                    )
+                    Text(
+                        text = "Luis Fernando Guzmán Niño",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.White.copy(alpha = 0.4f)
+                    )
+                }
             }
         }
     }

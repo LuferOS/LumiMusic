@@ -16,7 +16,31 @@ import kotlinx.coroutines.flow.firstOrNull
 import com.example.data.local.AppDatabase
 import android.content.Intent
 
+import androidx.media3.datasource.cache.SimpleCache
+import androidx.media3.datasource.cache.LeastRecentlyUsedCacheEvictor
+import androidx.media3.database.StandaloneDatabaseProvider
+import androidx.media3.datasource.cache.CacheDataSource
+import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import java.io.File
+
+
 class PlaybackService : MediaSessionService() {
+
+    companion object {
+        private var downloadCache: SimpleCache? = null
+        
+        @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
+        fun getCache(context: android.content.Context): SimpleCache {
+            if (downloadCache == null) {
+                val cacheDir = File(context.cacheDir, "media_cache")
+                val evictor = LeastRecentlyUsedCacheEvictor(100 * 1024 * 1024) // 100MB LRU Cache
+                downloadCache = SimpleCache(cacheDir, evictor, StandaloneDatabaseProvider(context))
+            }
+            return downloadCache!!
+        }
+    }
+
     private var mediaSession: MediaSession? = null
 
     private val serviceScope = CoroutineScope(Dispatchers.Main + Job())
@@ -26,16 +50,32 @@ class PlaybackService : MediaSessionService() {
         super.onCreate()
         
         // Improve response times with aggressive LoadControl
+        // Optimización de entradas y caché: Buffering agresivo para la siguiente canción
+        // Aseguramos que empiece a descargar la siguiente pista mucho antes (al menos 20s - 50s)
         val loadControl = DefaultLoadControl.Builder()
             .setBufferDurationsMs(
-                DefaultLoadControl.DEFAULT_MIN_BUFFER_MS / 2, // 25 seconds instead of 50
-                DefaultLoadControl.DEFAULT_MAX_BUFFER_MS / 2, // 25 seconds instead of 50
-                DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_MS / 2, // 1250ms instead of 2500ms
-                DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS / 2
+                50000, // min buffer 50s
+                100000, // max buffer 100s
+                1500, // buffer for playback 1.5s
+                2500  // buffer for playback after rebuffer 2.5s
             )
             .build()
             
+        @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
+        val httpDataSourceFactory = DefaultHttpDataSource.Factory().setAllowCrossProtocolRedirects(true)
+        
+        @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
+        val cacheDataSourceFactory = CacheDataSource.Factory()
+            .setCache(getCache(this))
+            .setUpstreamDataSourceFactory(httpDataSourceFactory)
+            .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
+            
+        @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
+        val mediaSourceFactory = DefaultMediaSourceFactory(this)
+            .setDataSourceFactory(cacheDataSourceFactory)
+
         val player = ExoPlayer.Builder(this)
+            .setMediaSourceFactory(mediaSourceFactory)
             .setAudioAttributes(
                 AudioAttributes.Builder()
                     .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
@@ -82,9 +122,11 @@ class PlaybackService : MediaSessionService() {
             monitorJob?.cancel()
             
             if (transitionType == "Crossfade" || transitionType == "Fade") {
+                // Aseguramos que inicie en 0 para un crossfade/V-fade limpio
+                player.volume = 0f
+                
                 // Fade-in
                 fadeJob = launch {
-                    player.volume = 0f
                     val steps = 20
                     val delayMs = (durationSeconds * 1000L) / steps
                     for (i in 1..steps) {
@@ -97,10 +139,14 @@ class PlaybackService : MediaSessionService() {
                 // Monitor for Fade-out
                 monitorJob = launch {
                     val durationMs = durationSeconds * 1000L
-                    while (true) {
+                    var fadeOutStarted = false
+                    while (!fadeOutStarted) {
                         val playerDuration = player.duration
                         val currentPos = player.currentPosition
-                        if (playerDuration > 0 && playerDuration - currentPos <= durationMs && player.isPlaying) {
+                        
+                        // Fix crossfade logic: trigger slightly earlier to ensure smooth fade
+                        if (playerDuration > 0 && playerDuration - currentPos <= durationMs + 200 && player.isPlaying) {
+                            fadeOutStarted = true
                             // Start fade out
                             val steps = 20
                             val delayMs = durationMs / steps
@@ -108,9 +154,9 @@ class PlaybackService : MediaSessionService() {
                                 player.volume = (i.toFloat() / steps)
                                 delay(delayMs)
                             }
-                            break // End monitoring for this track
+                            player.volume = 0f
                         }
-                        delay(500)
+                        if (!fadeOutStarted) delay(250) // poll faster for better accuracy
                     }
                 }
             } else {
