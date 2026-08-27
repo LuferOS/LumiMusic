@@ -126,7 +126,7 @@ fun FullScreenPlayer(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButton(onClick = {
-                    view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                    view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
                     onClose()
                 }) {
                     Icon(Icons.Rounded.KeyboardArrowDown, contentDescription = "Close", tint = Color.White)
@@ -220,7 +220,7 @@ fun FullScreenPlayer(
                 val currentUri = controller?.currentMediaItem?.localConfiguration?.uri?.toString() ?: ""
                 val isLiked by viewModel.isLiked(currentUri).collectAsStateWithLifecycle(initialValue = false)
                 IconButton(onClick = { 
-                    view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                    view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
                     viewModel.toggleLike(currentUri, currentTitle, currentArtist, artworkUri?.toString())
                 }) {
                     Icon(
@@ -274,15 +274,15 @@ fun FullScreenPlayer(
             ) {
                 var isShuffle by remember { mutableStateOf(controller?.shuffleModeEnabled == true) }
                 IconButton(onClick = { 
-                    view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                    view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
                     controller?.shuffleModeEnabled = !isShuffle
                     isShuffle = !isShuffle
                 }) {
                     Icon(Icons.Rounded.Shuffle, contentDescription = "Shuffle", tint = if (isShuffle) Color(0xFF1DB954) else Color.White.copy(alpha = 0.7f))
                 }
                 IconButton(onClick = { 
-                        view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
-                        if ((controller?.mediaItemCount ?: 0) <= 1) {
+                        view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                        if (controller?.hasPreviousMediaItem() == false) {
                             val isShuffle = controller?.shuffleModeEnabled == true
                             val repeatMode = controller?.repeatMode ?: Player.REPEAT_MODE_OFF
                             viewModel.playPreviousRemote(isShuffle, repeatMode)
@@ -299,7 +299,7 @@ fun FullScreenPlayer(
                         .clip(CircleShape)
                         .background(Color.White)
                         .clickable { 
-                            view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                            view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
                             if (isPlaying) controller?.pause() else controller?.play() 
                         },
                     contentAlignment = Alignment.Center
@@ -318,8 +318,8 @@ fun FullScreenPlayer(
                 }
                 
                 IconButton(onClick = { 
-                        view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
-                        if ((controller?.mediaItemCount ?: 0) <= 1) {
+                        view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                        if (controller?.hasNextMediaItem() == false) {
                             val isShuffle = controller?.shuffleModeEnabled == true
                             val repeatMode = controller?.repeatMode ?: Player.REPEAT_MODE_OFF
                             viewModel.playNextRemote(isShuffle, repeatMode)
@@ -331,7 +331,7 @@ fun FullScreenPlayer(
                 }
                 var repeatMode by remember { mutableStateOf(controller?.repeatMode ?: Player.REPEAT_MODE_OFF) }
                 IconButton(onClick = { 
-                    view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                    view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
                     val nextMode = when(repeatMode) {
                         Player.REPEAT_MODE_OFF -> Player.REPEAT_MODE_ALL
                         Player.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ONE

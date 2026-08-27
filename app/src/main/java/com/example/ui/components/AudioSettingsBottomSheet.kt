@@ -92,7 +92,7 @@ fun AudioSettingsBottomSheet(
                 Text("Equalizer", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     TextButton(onClick = { 
-                        view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                        view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
                         AudioEffectManager.reset() 
                     }) {
                         Text("RESET")
@@ -100,7 +100,7 @@ fun AudioSettingsBottomSheet(
                     Switch(
                         checked = eqState.enabled, 
                         onCheckedChange = { 
-                            view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                            view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
                             AudioEffectManager.setEnabled(it) 
                         }
                     )
@@ -122,7 +122,7 @@ fun AudioSettingsBottomSheet(
                                 .clip(RoundedCornerShape(16.dp))
                                 .background(if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant)
                                 .clickable { 
-                                    view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                                    view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
                                     AudioEffectManager.usePreset(i.toShort()) 
                                 }
                                 .padding(horizontal = 16.dp, vertical = 8.dp)

@@ -8,6 +8,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -46,7 +47,11 @@ fun SplashScreen(primaryColor: Color) {
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.alpha(alpha.value).scale(scale.value)
+            modifier = Modifier.graphicsLayer {
+                this.alpha = alpha.value
+                this.scaleX = scale.value
+                this.scaleY = scale.value
+            }
         ) {
             Box(
                 modifier = Modifier

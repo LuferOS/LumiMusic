@@ -192,7 +192,7 @@ fun LocalMusicScreen(
                         }
                     }
                 }
-                items(likedSongs) { track ->
+                items(items = likedSongs, key = { it.uri }) { track ->
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -250,7 +250,7 @@ fun LocalMusicScreen(
                         }
                     }
                 }
-                items(filteredList) { audio ->
+                items(items = filteredList, key = { it.uri }) { audio ->
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()

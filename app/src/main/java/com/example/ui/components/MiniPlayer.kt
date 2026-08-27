@@ -97,7 +97,7 @@ fun MiniPlayer(
                 .fillMaxWidth()
                 .padding(horizontal = 8.dp, vertical = 4.dp)
                 .neonGlow(color = dominantColor ?: Color.White, enabled = userStats.neonBorders)
-                .clickable { view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY); onExpand() },
+                .clickable { view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK); onExpand() },
             shape = RoundedCornerShape(8.dp),
             colors = CardDefaults.cardColors(containerColor = dominantColor ?: Color(0xFF333333))
         ) {
@@ -161,7 +161,7 @@ fun MiniPlayer(
                     val isLiked by viewModel.isLiked(currentUri).collectAsState(initial = false)
                     
                     IconButton(onClick = {
-                        view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                        view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
                         viewModel.toggleLike(currentUri, currentTitle, currentArtist, artworkUri?.toString())
                     }) {
                         Icon(
@@ -171,7 +171,7 @@ fun MiniPlayer(
                         )
                     }
                     IconButton(onClick = {
-                        view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                        view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
                         if (isPlaying) controller.pause() else controller.play()
                     }) {
                         androidx.compose.animation.AnimatedContent(
@@ -186,7 +186,7 @@ fun MiniPlayer(
                         }
                     }
                     IconButton(onClick = {
-                        view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                        view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
                         if ((controller.mediaItemCount ?: 0) <= 1) {
                             val isShuffle = controller.shuffleModeEnabled == true
                             val repeatMode = controller.repeatMode ?: Player.REPEAT_MODE_OFF

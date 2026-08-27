@@ -19,6 +19,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.async
 
 sealed class SearchState {
     object Idle : SearchState()
@@ -31,6 +32,7 @@ sealed class DownloadState {
     object Idle : DownloadState()
     object Loading : DownloadState()
     data class Success(val title: String, val url: String, val thumbnail: String?, val action: String = "play") : DownloadState()
+    data class Append(val title: String, val url: String, val thumbnail: String?) : DownloadState()
     data class Error(val message: String) : DownloadState()
 }
 
@@ -123,18 +125,46 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun fetchLyrics(trackName: String, artistName: String) {
         _lyricsState.value = "Loading lyrics..."
         _lrcState.value = null
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO) {
             try {
-                val response = api.searchLyrics(query = "$trackName $artistName")
-                if (response.status && response.data != null && response.data.isNotEmpty()) {
-                    val first = response.data.first()
-                    _lyricsState.value = first.lyrics ?: "No lyrics available"
-                    if (!first.lrc.isNullOrBlank()) {
-                        _lrcState.value = LrcParser.parse(first.lrc)
+                val deferredResult = kotlinx.coroutines.CompletableDeferred<Pair<String?, List<LrcLine>?>>()
+                val fails = java.util.concurrent.atomic.AtomicInteger(0)
+                
+                launch(Dispatchers.IO) {
+                    try {
+                        val response = api.searchLyrics(query = "$trackName $artistName")
+                        if (response.status && response.data != null && response.data.isNotEmpty()) {
+                            val first = response.data.first()
+                            val plain = first.lyrics ?: "No lyrics available"
+                            val parsedLrc = if (!first.lrc.isNullOrBlank()) LrcParser.parse(first.lrc) else null
+                            deferredResult.complete(plain to parsedLrc)
+                        } else if (fails.incrementAndGet() == 2) {
+                            deferredResult.complete("No lyrics found" to null)
+                        }
+                    } catch (e: Exception) {
+                        if (fails.incrementAndGet() == 2) deferredResult.complete("Failed to load lyrics" to null)
                     }
-                } else {
-                    _lyricsState.value = "No lyrics found"
                 }
+                
+                launch(Dispatchers.IO) {
+                    try {
+                        val response = lrcLibApi.searchLyrics(trackName = trackName, artistName = artistName)
+                        if (response.isNotEmpty()) {
+                            val first = response.first()
+                            val plain = first.plainLyrics ?: "No lyrics available"
+                            val parsedLrc = if (!first.syncedLyrics.isNullOrBlank()) LrcParser.parse(first.syncedLyrics) else null
+                            deferredResult.complete(plain to parsedLrc)
+                        } else if (fails.incrementAndGet() == 2) {
+                            deferredResult.complete("No lyrics found" to null)
+                        }
+                    } catch (e: Exception) {
+                        if (fails.incrementAndGet() == 2) deferredResult.complete("Failed to load lyrics" to null)
+                    }
+                }
+                
+                val result = deferredResult.await()
+                _lyricsState.value = result.first
+                _lrcState.value = result.second
             } catch (e: Exception) {
                 _lyricsState.value = "Failed to load lyrics"
             }
@@ -151,12 +181,74 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     var currentRemoteIndex = -1
     var currentApiPref = "Spotify"
 
+    private var prefetchJob: kotlinx.coroutines.Job? = null
+
     fun playFromRemotePlaylist(results: List<ITunesTrack>, index: Int, apiPref: String) {
         remotePlaylist = results
         currentRemoteIndex = index
         currentApiPref = apiPref
         val track = results[index]
         selectTrack(track.trackName ?: "", track.artistName ?: "", apiPref, "play")
+        
+        prefetchJob?.cancel()
+        prefetchJob = viewModelScope.launch(Dispatchers.IO) {
+            val scope = this
+            kotlinx.coroutines.delay(1000)
+            val prefetchDeferreds = (1..5).mapNotNull { i ->
+                val nextIndex = index + i
+                if (nextIndex < results.size) {
+                    val nextTrack = results[nextIndex]
+                    val fullQuery = "${nextTrack.trackName} ${nextTrack.artistName}"
+                    
+                    scope.async(Dispatchers.IO) {
+                        var url: String? = null
+                        var thumb: String? = null
+                        
+                        if (apiPref == "Ambos") {
+                            val deferredResult = kotlinx.coroutines.CompletableDeferred<Pair<String?, String?>>()
+                            val fails = java.util.concurrent.atomic.AtomicInteger(0)
+                            scope.launch(Dispatchers.IO) {
+                                try {
+                                    val ytRes = api.searchYouTube(query = fullQuery)
+                                    if (ytRes.status && ytRes.data?.downloadUrl != null) deferredResult.complete(ytRes.data.downloadUrl to ytRes.data.thumbnail)
+                                    else if (fails.incrementAndGet() == 2) deferredResult.complete(null to null)
+                                } catch(e: Exception) { if (fails.incrementAndGet() == 2) deferredResult.complete(null to null) }
+                            }
+                            scope.launch(Dispatchers.IO) {
+                                try {
+                                    val spotRes = api.searchSpotify(query = fullQuery)
+                                    if (spotRes.status && spotRes.data?.downloadUrl != null) deferredResult.complete(spotRes.data.downloadUrl to spotRes.data.cover)
+                                    else if (fails.incrementAndGet() == 2) deferredResult.complete(null to null)
+                                } catch(e: Exception) { if (fails.incrementAndGet() == 2) deferredResult.complete(null to null) }
+                            }
+                            val res = deferredResult.await()
+                            url = res.first
+                            thumb = res.second
+                        } else if (apiPref == "YouTube") {
+                            try {
+                                val ytRes = api.searchYouTube(query = fullQuery)
+                                if (ytRes.status) { url = ytRes.data?.downloadUrl; thumb = ytRes.data?.thumbnail }
+                            } catch (e: Exception) {}
+                        } else {
+                            try {
+                                val spotRes = api.searchSpotify(query = fullQuery)
+                                if (spotRes.status) { url = spotRes.data?.downloadUrl; thumb = spotRes.data?.cover }
+                            } catch (e: Exception) {}
+                        }
+                        
+                        if (url != null) DownloadState.Append(nextTrack.trackName ?: "", url, thumb) else null
+                    }
+                } else null
+            }
+            
+            for (deferred in prefetchDeferreds) {
+                val state = deferred.await()
+                if (state != null) {
+                    _downloadState.value = state
+                    kotlinx.coroutines.delay(100)
+                }
+            }
+        }
     }
 
     fun playNextRemote(isShuffle: Boolean = false, repeatMode: Int = 0): Boolean {
@@ -201,31 +293,41 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 if (response.results.isNotEmpty()) {
                     _searchState.value = SearchState.Success(response.results)
                 } else {
-                    // Fallback to YouTube API directly for long names that iTunes fails to find
-                    val ytRes = withContext(Dispatchers.IO) { 
-                        try { api.searchYouTube(query = query) } catch(e: Exception) { null }
+                    // Fallback to YouTube and Spotify concurrently
+                    val deferredResult = kotlinx.coroutines.CompletableDeferred<ITunesTrack?>()
+                    val fails = java.util.concurrent.atomic.AtomicInteger(0)
+                    
+                    launch(Dispatchers.IO) {
+                        try {
+                            val ytRes = api.searchYouTube(query = query)
+                            if (ytRes.status && ytRes.data != null) {
+                                deferredResult.complete(ITunesTrack(
+                                    trackName = ytRes.data.title ?: query,
+                                    artistName = ytRes.data.author ?: "YouTube",
+                                    artworkUrl100 = ytRes.data.thumbnail
+                                ))
+                            } else if (fails.incrementAndGet() == 2) deferredResult.complete(null)
+                        } catch (e: Exception) { if (fails.incrementAndGet() == 2) deferredResult.complete(null) }
                     }
-                    if (ytRes != null && ytRes.status && ytRes.data != null) {
-                        val fakeTrack = ITunesTrack(
-                            trackName = ytRes.data.title ?: query,
-                            artistName = ytRes.data.author ?: "YouTube",
-                            artworkUrl100 = ytRes.data.thumbnail
-                        )
-                        _searchState.value = SearchState.Success(listOf(fakeTrack))
+                    
+                    launch(Dispatchers.IO) {
+                        try {
+                            val spotRes = api.searchSpotify(query = query)
+                            if (spotRes.status && spotRes.data != null) {
+                                deferredResult.complete(ITunesTrack(
+                                    trackName = spotRes.data.title ?: query,
+                                    artistName = spotRes.data.artist ?: "Spotify",
+                                    artworkUrl100 = spotRes.data.cover
+                                ))
+                            } else if (fails.incrementAndGet() == 2) deferredResult.complete(null)
+                        } catch(e: Exception) { if (fails.incrementAndGet() == 2) deferredResult.complete(null) }
+                    }
+                    
+                    val fallbackTrack = deferredResult.await()
+                    if (fallbackTrack != null) {
+                        _searchState.value = SearchState.Success(listOf(fallbackTrack))
                     } else {
-                        val spotRes = withContext(Dispatchers.IO) {
-                            try { api.searchSpotify(query = query) } catch(e: Exception) { null }
-                        }
-                        if (spotRes != null && spotRes.status && spotRes.data != null) {
-                            val fakeTrack = ITunesTrack(
-                                trackName = spotRes.data.title ?: query,
-                                artistName = spotRes.data.artist ?: "Spotify",
-                                artworkUrl100 = spotRes.data.cover
-                            )
-                            _searchState.value = SearchState.Success(listOf(fakeTrack))
-                        } else {
-                            _searchState.value = SearchState.Success(emptyList())
-                        }
+                        _searchState.value = SearchState.Success(emptyList())
                     }
                 }
                 
@@ -259,53 +361,63 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val fullQuery = "$trackName $artistName"
         viewModelScope.launch {
             try {
-                var success = false
-                
-                suspend fun tryYouTube(): Boolean = withContext(Dispatchers.IO) {
+                suspend fun fetchYouTube(): DownloadState.Success? = withContext(Dispatchers.IO) {
                     try {
                         val ytRes = api.searchYouTube(query = fullQuery)
                         if (ytRes.status && ytRes.data?.downloadUrl != null) {
-                            _downloadState.value = DownloadState.Success(
+                            return@withContext DownloadState.Success(
                                 title = ytRes.data.title ?: trackName,
                                 url = ytRes.data.downloadUrl,
                                 thumbnail = ytRes.data.thumbnail,
                                 action = action
                             )
-                            return@withContext true
                         }
                     } catch (e: Exception) {}
-                    return@withContext false
+                    return@withContext null
                 }
-                
-                suspend fun trySpotify(): Boolean = withContext(Dispatchers.IO) {
+
+                suspend fun fetchSpotify(): DownloadState.Success? = withContext(Dispatchers.IO) {
                     try {
                         val spotRes = api.searchSpotify(query = fullQuery)
                         if (spotRes.status && spotRes.data?.downloadUrl != null) {
-                            _downloadState.value = DownloadState.Success(
+                            return@withContext DownloadState.Success(
                                 title = spotRes.data.title ?: trackName,
                                 url = spotRes.data.downloadUrl,
                                 thumbnail = spotRes.data.cover,
                                 action = action
                             )
-                            return@withContext true
                         }
                     } catch (e: Exception) {}
-                    return@withContext false
+                    return@withContext null
                 }
-                
+
+                var finalState: DownloadState.Success? = null
+
                 if (apiPref == "YouTube") {
-                    success = tryYouTube()
+                    finalState = fetchYouTube()
                 } else if (apiPref == "Spotify") {
-                    success = trySpotify()
+                    finalState = fetchSpotify()
                 } else {
-                    // Both: prefer YouTube, then Spotify fallback
-                    success = tryYouTube()
-                    if (!success) {
-                        success = trySpotify()
+                    // Ambos: get the fastest successful response using parallel fetching
+                    val deferredResult = kotlinx.coroutines.CompletableDeferred<DownloadState.Success?>()
+                    val fails = java.util.concurrent.atomic.AtomicInteger(0)
+                    
+                    launch(Dispatchers.IO) {
+                        val res = fetchYouTube()
+                        if (res != null) deferredResult.complete(res) 
+                        else if (fails.incrementAndGet() == 2) deferredResult.complete(null)
                     }
+                    launch(Dispatchers.IO) {
+                        val res = fetchSpotify()
+                        if (res != null) deferredResult.complete(res) 
+                        else if (fails.incrementAndGet() == 2) deferredResult.complete(null)
+                    }
+                    finalState = deferredResult.await()
                 }
-                
-                if (!success) {
+
+                if (finalState != null) {
+                    _downloadState.value = finalState
+                } else {
                     _downloadState.value = DownloadState.Error("Error al obtener la canción. Intenta nuevamente.")
                 }
             } catch (e: Exception) {
@@ -315,7 +427,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun playNextRandomTrack(apiPref: String) {
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO) {
             val randomQueries = listOf("Pop Hits 2024", "LoFi beats", "Top 50 Global", "Rock Classics", "Synthwave", "Chill Vibes", "Viral hits")
             var query = randomQueries.random()
             
@@ -334,7 +446,41 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     val track = response.results.random()
                     selectTrack(track.trackName ?: "", track.artistName ?: "", apiPref, "play")
                 } else {
-                    _searchState.value = SearchState.Error("No random tracks found")
+                    val deferredResult = kotlinx.coroutines.CompletableDeferred<ITunesTrack?>()
+                    val fails = java.util.concurrent.atomic.AtomicInteger(0)
+                    
+                    launch(Dispatchers.IO) {
+                        try {
+                            val ytRes = api.searchYouTube(query = query)
+                            if (ytRes.status && ytRes.data != null) {
+                                deferredResult.complete(ITunesTrack(
+                                    trackName = ytRes.data.title ?: query,
+                                    artistName = ytRes.data.author ?: "YouTube",
+                                    artworkUrl100 = ytRes.data.thumbnail
+                                ))
+                            } else if (fails.incrementAndGet() == 2) deferredResult.complete(null)
+                        } catch (e: Exception) { if (fails.incrementAndGet() == 2) deferredResult.complete(null) }
+                    }
+                    
+                    launch(Dispatchers.IO) {
+                        try {
+                            val spotRes = api.searchSpotify(query = query)
+                            if (spotRes.status && spotRes.data != null) {
+                                deferredResult.complete(ITunesTrack(
+                                    trackName = spotRes.data.title ?: query,
+                                    artistName = spotRes.data.artist ?: "Spotify",
+                                    artworkUrl100 = spotRes.data.cover
+                                ))
+                            } else if (fails.incrementAndGet() == 2) deferredResult.complete(null)
+                        } catch(e: Exception) { if (fails.incrementAndGet() == 2) deferredResult.complete(null) }
+                    }
+                    
+                    val fallbackTrack = deferredResult.await()
+                    if (fallbackTrack != null) {
+                        selectTrack(fallbackTrack.trackName ?: "", fallbackTrack.artistName ?: "", apiPref, "play")
+                    } else {
+                        _searchState.value = SearchState.Error("No random tracks found")
+                    }
                 }
             } catch (e: Exception) {
                 _searchState.value = SearchState.Error("Failed to fetch random track")

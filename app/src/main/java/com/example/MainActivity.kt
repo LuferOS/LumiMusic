@@ -430,6 +430,17 @@ fun MainScreen(
                 profileViewModel.recordDownload()
             }
             viewModel.resetState() // Go back to idle to hide loading
+        } else if (state is com.example.viewmodel.DownloadState.Append) {
+            val mediaItem = androidx.media3.common.MediaItem.Builder()
+                .setUri(state.url)
+                .setMediaMetadata(
+                    androidx.media3.common.MediaMetadata.Builder()
+                        .setTitle(state.title)
+                        .setArtist(state.title)
+                        .build()
+                ).build()
+            controller?.addMediaItem(mediaItem)
+            viewModel.resetState()
         }
     }
 

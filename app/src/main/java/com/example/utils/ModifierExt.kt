@@ -1,5 +1,6 @@
 package com.example.utils
 
+import android.view.HapticFeedbackConstants
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.clickable
@@ -14,15 +15,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalView
 
 fun Modifier.bouncyClick(onClick: () -> Unit): Modifier = composed {
     var isPressed by remember { mutableStateOf(false) }
+    val view = LocalView.current
     val scale by animateFloatAsState(
         targetValue = if (isPressed) 0.85f else 1f,
         animationSpec = spring(dampingRatio = 0.5f, stiffness = 400f),
         label = "BouncyScale"
     )
-
     this
         .graphicsLayer {
             scaleX = scale
@@ -33,6 +35,7 @@ fun Modifier.bouncyClick(onClick: () -> Unit): Modifier = composed {
                 while (true) {
                     awaitFirstDown(requireUnconsumed = false)
                     isPressed = true
+                    view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
                     waitForUpOrCancellation()
                     isPressed = false
                 }
