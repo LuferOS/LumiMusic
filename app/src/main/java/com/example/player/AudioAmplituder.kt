@@ -7,6 +7,8 @@ import kotlinx.coroutines.flow.StateFlow
 import java.nio.ByteBuffer
 
 object AudioAmplituder : TeeAudioProcessor.AudioBufferSink {
+    var enabled: Boolean = true
+
     private val _amplitude = MutableStateFlow(0f)
     val amplitude: StateFlow<Float> = _amplitude
 
@@ -15,6 +17,7 @@ object AudioAmplituder : TeeAudioProcessor.AudioBufferSink {
     }
 
     override fun handleBuffer(buffer: ByteBuffer) {
+        if (!enabled) return
         val limit = buffer.limit()
         if (limit == 0) return
         var sum = 0.0

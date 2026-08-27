@@ -357,7 +357,7 @@ fun ProfileScreen(
                     )
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
-                        text = "LumiMusic v1.0",
+                        text = "LumiMusic v${com.example.BuildConfig.VERSION_NAME}",
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface

@@ -59,6 +59,7 @@ class PlaybackService : MediaSessionService() {
             AppDatabase.getDatabase(this@PlaybackService).userStatsDao().getStats().collect { stats ->
                 currentTransitionType = stats?.transitionType ?: "Gapless"
                 currentTransitionDuration = stats?.transitionDuration ?: 3
+                AudioAmplituder.enabled = stats?.showSpectrums ?: true
             }
         }
         
