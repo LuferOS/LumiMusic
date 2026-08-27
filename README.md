@@ -1,8 +1,15 @@
 # 🎵 LumiMusic
 
-![Kotlin](https://img.shields.io/badge/Kotlin-B125EA?style=for-the-badge&logo=kotlin&logoColor=white)
-![Jetpack Compose](https://img.shields.io/badge/Jetpack%20Compose-4285F4?style=for-the-badge&logo=android&logoColor=white)
-![Python](https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white)
+<div align="center">
+
+  ![Kotlin](https://img.shields.io/badge/Kotlin-B125EA?style=for-the-badge&logo=kotlin&logoColor=white)
+  ![Jetpack Compose](https://img.shields.io/badge/Jetpack%20Compose-4285F4?style=for-the-badge&logo=android&logoColor=white)
+  ![Python](https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white)
+  
+  ![GitHub Repo stars](https://img.shields.io/github/stars/LuferOS/LumiMusic?style=for-the-badge&color=ffdd00)
+  ![GitHub all releases](https://img.shields.io/github/downloads/LuferOS/LumiMusic/total?style=for-the-badge&color=00e676)
+
+</div>
 
 **LumiMusic** es un reproductor y descargador de música avanzado para Android, desarrollado 100% en Kotlin utilizando Jetpack Compose. Destaca por su alto nivel de personalización y una interfaz fluida. 
 
@@ -51,4 +58,3 @@ La aplicación está impulsada bajo el capó por **AlyaCore**, una potente API q
 
 Desarrollado por **LuferOS**
 API: api.alyacore.xyz
-creador de la API: Ander
