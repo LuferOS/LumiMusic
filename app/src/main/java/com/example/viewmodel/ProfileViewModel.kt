@@ -61,6 +61,12 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    fun updateShowSpectrums(show: Boolean) {
+        viewModelScope.launch {
+            dao.updateShowSpectrums(show)
+        }
+    }
+
     fun clearCache(context: android.content.Context) {
         viewModelScope.launch(Dispatchers.IO) {
             try {

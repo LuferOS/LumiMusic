@@ -16,6 +16,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.example.utils.bouncyClick
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -203,7 +204,7 @@ class MainActivity : ComponentActivity() {
                                             validIndices.forEach { tabIndex ->
                                                 when (tabIndex) {
                                                     0 -> NavigationBarItem(
-                                                        icon = { Icon(Icons.Rounded.Search, contentDescription = "Buscar", modifier = Modifier.size(28.dp)) },
+                                                        icon = { Icon(Icons.Rounded.Search, contentDescription = "Buscar", modifier = Modifier.size(28.dp).bouncyClick { selectedTab = 0 }) },
                                                         label = { Text("Buscar", style = MaterialTheme.typography.labelSmall) },
                                                         selected = selectedTab == 0,
                                                         onClick = { selectedTab = 0 },
@@ -216,13 +217,10 @@ class MainActivity : ComponentActivity() {
                                                         )
                                                     )
                                                     1 -> NavigationBarItem(
-                                                        icon = { Icon(Icons.Rounded.LibraryMusic, contentDescription = "Tu biblioteca", modifier = Modifier.size(28.dp)) },
+                                                        icon = { Icon(Icons.Rounded.LibraryMusic, contentDescription = "Tu biblioteca", modifier = Modifier.size(28.dp).bouncyClick { selectedTab = 1; checkAndRequestPermissions() }) },
                                                         label = { Text("Tu biblioteca", style = MaterialTheme.typography.labelSmall) },
                                                         selected = selectedTab == 1,
-                                                        onClick = { 
-                                                            selectedTab = 1
-                                                            checkAndRequestPermissions()
-                                                        },
+                                                        onClick = { selectedTab = 1; checkAndRequestPermissions() },
                                                         colors = NavigationBarItemDefaults.colors(
                                                             indicatorColor = Color.Transparent,
                                                             selectedIconColor = Color.White,
@@ -232,7 +230,7 @@ class MainActivity : ComponentActivity() {
                                                         )
                                                     )
                                                     2 -> NavigationBarItem(
-                                                        icon = { Icon(Icons.Rounded.Person, contentDescription = "Perfil", modifier = Modifier.size(28.dp)) },
+                                                        icon = { Icon(Icons.Rounded.Person, contentDescription = "Perfil", modifier = Modifier.size(28.dp).bouncyClick { selectedTab = 2 }) },
                                                         label = { Text("Perfil", style = MaterialTheme.typography.labelSmall) },
                                                         selected = selectedTab == 2,
                                                         onClick = { selectedTab = 2 },

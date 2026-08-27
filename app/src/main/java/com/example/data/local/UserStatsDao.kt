@@ -43,4 +43,7 @@ interface UserStatsDao {
 
     @Query("UPDATE user_stats SET startupTab = :tab, navOrder = :order, playerFont = :font, visualizerType = :vType, visualizerColor = :vColor WHERE id = 1")
     suspend fun updateCustomization(tab: Int, order: String, font: String, vType: String, vColor: String)
+
+    @Query("UPDATE user_stats SET showSpectrums = :show WHERE id = 1")
+    suspend fun updateShowSpectrums(show: Boolean)
 }

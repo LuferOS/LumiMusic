@@ -113,7 +113,16 @@ class PlaybackService : MediaSessionService() {
         // Enable Gapless playback by ignoring silence and keeping decoders active
         player.skipSilenceEnabled = true
         
-        mediaSession = MediaSession.Builder(this, player).build()
+        val intent = android.content.Intent(this, com.example.MainActivity::class.java)
+        val pendingIntent = android.app.PendingIntent.getActivity(
+            this,
+            0,
+            intent,
+            android.app.PendingIntent.FLAG_IMMUTABLE or android.app.PendingIntent.FLAG_UPDATE_CURRENT
+        )
+        mediaSession = MediaSession.Builder(this, player)
+            .setSessionActivity(pendingIntent)
+            .build()
         
         // Initialize AudioEffectManager when audio session ID is available
         player.addListener(object : Player.Listener {

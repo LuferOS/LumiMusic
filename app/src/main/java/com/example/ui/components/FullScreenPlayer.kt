@@ -179,14 +179,18 @@ fun FullScreenPlayer(
 
             Spacer(modifier = Modifier.weight(0.15f))
             
-            VisualizerView(
-                isPlaying = isPlaying,
-                visualizerType = userStats.visualizerType,
-                primaryColor = if (userStats.visualizerColor == "Dinámico") (dominantColor ?: Color.White) else {
-                    try { Color(android.graphics.Color.parseColor(userStats.visualizerColor)) } catch(e: Exception) { Color.White }
-                },
-                modifier = Modifier.padding(horizontal = 32.dp)
-            )
+            if (userStats.showSpectrums) {
+                VisualizerView(
+                    isPlaying = isPlaying,
+                    visualizerType = userStats.visualizerType,
+                    primaryColor = if (userStats.visualizerColor == "Dinámico") (dominantColor ?: Color.White) else {
+                        try { Color(android.graphics.Color.parseColor(userStats.visualizerColor)) } catch(e: Exception) { Color.White }
+                    },
+                    modifier = Modifier.padding(horizontal = 32.dp)
+                )
+            } else {
+                Spacer(modifier = Modifier.height(100.dp))
+            }
 
             Spacer(modifier = Modifier.weight(0.15f))
 

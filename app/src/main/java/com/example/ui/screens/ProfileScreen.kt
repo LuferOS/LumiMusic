@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.viewmodel.ProfileViewModel
 import com.example.ui.theme.neonGlow
+import com.example.utils.bouncyClick
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -258,6 +259,7 @@ fun ProfileScreen(
         var selectedFont by remember { mutableStateOf(stats.fontPreference) }
         var isNeon by remember { mutableStateOf(stats.neonBorders) }
         var isExtract by remember { mutableStateOf(stats.extractAlbumColor) }
+        var isShowSpectrums by remember { mutableStateOf(stats.showSpectrums) }
         
         val neonColors = listOf(
             "#00FFFF" to "Cyan", "#FF00FF" to "Magenta", "#00FF00" to "Lime", 
@@ -308,11 +310,16 @@ fun ProfileScreen(
                         Checkbox(checked = isExtract, onCheckedChange = { isExtract = it })
                         Text("Color dinámico (Carátula)")
                     }
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clickable { isShowSpectrums = !isShowSpectrums }) {
+                        Checkbox(checked = isShowSpectrums, onCheckedChange = { isShowSpectrums = it })
+                        Text("Animaciones y Espectros")
+                    }
                 }
             },
             confirmButton = {
                 TextButton(onClick = {
                     viewModel.updateAppearance(selectedPrimary, selectedBg, selectedFont, isNeon, isExtract)
+                    viewModel.updateShowSpectrums(isShowSpectrums)
                     showAppearanceDialog = false
                 }) { Text("Aplicar") }
             },
@@ -403,7 +410,7 @@ fun SettingItem(
             .padding(horizontal = 16.dp, vertical = 4.dp)
             .neonGlow(color = neonColor, cornerRadius = 16.dp, enabled = applyNeon)
             .clip(RoundedCornerShape(16.dp))
-            .clickable(onClick = onClick)
+            .bouncyClick(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {

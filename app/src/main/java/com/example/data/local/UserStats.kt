@@ -24,5 +24,6 @@ data class UserStats(
     val navOrder: String = "0,1,2",
     val playerFont: String = "Default",
     val visualizerType: String = "Ondas",
-    val visualizerColor: String = "Dinámico"
+    val visualizerColor: String = "Dinámico",
+    val showSpectrums: Boolean = true
 )
