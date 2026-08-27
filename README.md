@@ -50,3 +50,5 @@ La aplicación está impulsada bajo el capó por **AlyaCore**, una potente API q
 ## 👨‍💻 Autor
 
 Desarrollado por **LuferOS**
+API: api.alyacore.xyz
+creador de la API: Ander
