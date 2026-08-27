@@ -386,7 +386,7 @@ fun FullScreenPlayer(
                     if (lrcState != null) {
                         val activeLineIndex by remember(lrcState) {
                             derivedStateOf {
-                                val lines = lrcState!!
+                                val lines = lrcState ?: emptyList()
                                 val idx = lines.indexOfLast { it.timeMs <= currentPosition }
                                 if (idx == -1) 0 else idx
                             }
@@ -394,7 +394,7 @@ fun FullScreenPlayer(
                         
                         val listState = rememberLazyListState()
                         LaunchedEffect(activeLineIndex) {
-                            if (isLyricsExpanded && lrcState!!.isNotEmpty()) {
+                            if (isLyricsExpanded && !lrcState.isNullOrEmpty()) {
                                 // Smooth scroll to keep active line near center
                                 val targetIdx = maxOf(0, activeLineIndex - 2)
                                 listState.animateScrollToItem(targetIdx)
@@ -406,7 +406,7 @@ fun FullScreenPlayer(
                             modifier = Modifier.fillMaxSize(),
                             contentPadding = PaddingValues(bottom = if (isLyricsExpanded) 64.dp else 0.dp)
                         ) {
-                            itemsIndexed(lrcState!!) { index, line ->
+                            itemsIndexed(lrcState ?: emptyList()) { index, line ->
                                 val isActive = index == activeLineIndex
                                 val alpha = if (isActive) 1f else 0.4f
                                 val scale = if (isActive) 1.05f else 1f
