@@ -61,7 +61,6 @@ class PlaybackService : MediaSessionService() {
                 currentTransitionDuration = stats?.transitionDuration ?: 3
             }
         }
-        super.onCreate()
         
         // Improve response times with aggressive LoadControl
         // Optimización de entradas y caché: Buffering agresivo para la siguiente canción
