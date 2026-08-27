@@ -3,6 +3,9 @@ package com.example.player
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.DefaultRenderersFactory
+import androidx.media3.exoplayer.audio.DefaultAudioSink
+import androidx.media3.exoplayer.audio.TeeAudioProcessor
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 import androidx.media3.exoplayer.DefaultLoadControl
@@ -34,7 +37,7 @@ class PlaybackService : MediaSessionService() {
         fun getCache(context: android.content.Context): SimpleCache {
             if (downloadCache == null) {
                 val cacheDir = File(context.cacheDir, "media_cache")
-                val evictor = LeastRecentlyUsedCacheEvictor(100 * 1024 * 1024) // 100MB LRU Cache
+                val evictor = LeastRecentlyUsedCacheEvictor(200 * 1024 * 1024) // 200MB LRU Cache
                 downloadCache = SimpleCache(cacheDir, evictor, StandaloneDatabaseProvider(context))
             }
             return downloadCache!!
@@ -46,7 +49,18 @@ class PlaybackService : MediaSessionService() {
     private val serviceScope = CoroutineScope(Dispatchers.Main + Job())
     private var fadeJob: Job? = null
     
+        private var currentTransitionType = "Gapless"
+    private var currentTransitionDuration = 3
+    
     override fun onCreate() {
+        super.onCreate()
+        // Cargar configuración de transiciones una vez (y escuchar cambios en background)
+        serviceScope.launch {
+            AppDatabase.getDatabase(this@PlaybackService).userStatsDao().getStats().collect { stats ->
+                currentTransitionType = stats?.transitionType ?: "Gapless"
+                currentTransitionDuration = stats?.transitionDuration ?: 3
+            }
+        }
         super.onCreate()
         
         // Improve response times with aggressive LoadControl
@@ -74,7 +88,16 @@ class PlaybackService : MediaSessionService() {
         val mediaSourceFactory = DefaultMediaSourceFactory(this)
             .setDataSourceFactory(cacheDataSourceFactory)
 
-        val player = ExoPlayer.Builder(this)
+        val teeProcessor = TeeAudioProcessor(AudioAmplituder)
+        val renderersFactory = object : DefaultRenderersFactory(this) {
+            override fun buildAudioSink(context: android.content.Context, enableFloatOutput: Boolean, enableAudioTrackPlaybackParams: Boolean): androidx.media3.exoplayer.audio.AudioSink {
+                return DefaultAudioSink.Builder(context)
+                    .setAudioProcessors(arrayOf(teeProcessor))
+                    .build()
+            }
+        }
+
+        val player = ExoPlayer.Builder(this, renderersFactory)
             .setMediaSourceFactory(mediaSourceFactory)
             .setAudioAttributes(
                 AudioAttributes.Builder()
@@ -114,9 +137,8 @@ class PlaybackService : MediaSessionService() {
     
     private fun applyTransitionEffects(player: ExoPlayer) {
         serviceScope.launch {
-            val stats = AppDatabase.getDatabase(this@PlaybackService).userStatsDao().getStatsDirect()
-            val transitionType = stats?.transitionType ?: "Gapless"
-            val durationSeconds = stats?.transitionDuration ?: 3
+            val transitionType = currentTransitionType
+            val durationSeconds = currentTransitionDuration
             
             fadeJob?.cancel()
             monitorJob?.cancel()

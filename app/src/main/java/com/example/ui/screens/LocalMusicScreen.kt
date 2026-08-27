@@ -1,5 +1,7 @@
 package com.example.ui.screens
 import com.example.viewmodel.MainViewModel
+import com.example.data.local.UserStats
+import com.example.ui.theme.neonGlow
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -14,6 +16,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -34,7 +37,8 @@ fun LocalMusicScreen(
     viewModel: LocalMusicViewModel,
     mainViewModel: MainViewModel,
     controller: MediaController?,
-    dominantColor: Color?
+    dominantColor: Color?,
+    userStats: UserStats
 ) {
     val likedSongs by mainViewModel.likedTracks.collectAsStateWithLifecycle()
     val musicList by viewModel.localMusicList.collectAsStateWithLifecycle()
@@ -147,8 +151,10 @@ fun LocalMusicScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 2.dp)
+                        .clip(RoundedCornerShape(12.dp))
                         .clickable { showingLiked = !showingLiked }
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                        .padding(horizontal = 8.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Box(
@@ -174,10 +180,24 @@ fun LocalMusicScreen(
             }
 
             if (showingLiked) {
+                if (likedSongs.isEmpty()) {
+                    item {
+                        Column(
+                            modifier = Modifier.fillMaxWidth().padding(32.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Icon(Icons.Rounded.FavoriteBorder, contentDescription = null, modifier = Modifier.size(64.dp), tint = Color.White.copy(alpha=0.3f))
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Text("Aún no tienes favoritos", color = Color.White.copy(alpha=0.5f), style = MaterialTheme.typography.bodyLarge)
+                        }
+                    }
+                }
                 items(likedSongs) { track ->
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .padding(horizontal = 8.dp, vertical = 2.dp)
+                            .clip(RoundedCornerShape(12.dp))
                             .clickable {
                                 val index = likedSongs.indexOf(track)
                                 if (index != -1 && controller != null) {
@@ -211,18 +231,32 @@ fun LocalMusicScreen(
                         )
                         Spacer(modifier = Modifier.width(16.dp))
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(track.title, color = Color.White, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(track.title, color = Color.White, style = MaterialTheme.typography.bodyLarge, maxLines = 1, modifier = Modifier.basicMarquee())
                             Spacer(modifier = Modifier.height(2.dp))
-                            Text("Favorito • ${track.artist}", style = MaterialTheme.typography.bodyMedium, color = Color.White.copy(alpha = 0.6f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text("Favorito • ${track.artist}", style = MaterialTheme.typography.bodyMedium, color = Color.White.copy(alpha = 0.6f), maxLines = 1, modifier = Modifier.basicMarquee())
                         }
                     }
                 }
             } else {
-            items(filteredList) { audio ->
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable {
+                if (filteredList.isEmpty()) {
+                    item {
+                        Column(
+                            modifier = Modifier.fillMaxWidth().padding(32.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Icon(Icons.Rounded.MusicOff, contentDescription = null, modifier = Modifier.size(64.dp), tint = Color.White.copy(alpha=0.3f))
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Text("No se encontró música", color = Color.White.copy(alpha=0.5f), style = MaterialTheme.typography.bodyLarge)
+                        }
+                    }
+                }
+                items(filteredList) { audio ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 8.dp, vertical = 2.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable {
                             val index = filteredList.indexOf(audio)
                             if (index != -1 && controller != null) {
                                 val mediaItems = filteredList.map { track ->
@@ -256,9 +290,9 @@ fun LocalMusicScreen(
                     }
                     Spacer(modifier = Modifier.width(16.dp))
                     Column(modifier = Modifier.weight(1f)) {
-                        Text(audio.title, color = Color.White, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(audio.title, color = Color.White, style = MaterialTheme.typography.bodyLarge, maxLines = 1, modifier = Modifier.basicMarquee())
                         Spacer(modifier = Modifier.height(2.dp))
-                        Text("Descargado • ${audio.artist}", style = MaterialTheme.typography.bodyMedium, color = Color.White.copy(alpha = 0.6f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text("Descargado • ${audio.artist}", style = MaterialTheme.typography.bodyMedium, color = Color.White.copy(alpha = 0.6f), maxLines = 1, modifier = Modifier.basicMarquee())
                     }
                 }
             }

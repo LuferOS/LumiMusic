@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
 import java.util.Calendar
 
 class ProfileViewModel(application: Application) : AndroidViewModel(application) {
@@ -43,6 +44,33 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
     fun updateProfile(name: String, apiPref: String) {
         viewModelScope.launch {
             dao.updateProfile(name, apiPref)
+        }
+    }
+
+    
+    fun completeOnboarding() {
+        viewModelScope.launch {
+            dao.updateOnboardingStatus(true)
+        }
+    }
+    
+    
+    fun updateCustomization(tab: Int, order: String, font: String, vType: String, vColor: String) {
+        viewModelScope.launch {
+            dao.updateCustomization(tab, order, font, vType, vColor)
+        }
+    }
+
+    fun clearCache(context: android.content.Context) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val cacheDir = java.io.File(context.cacheDir, "media_cache")
+                if (cacheDir.exists()) {
+                    cacheDir.deleteRecursively()
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
         }
     }
 

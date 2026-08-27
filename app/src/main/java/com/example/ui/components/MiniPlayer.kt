@@ -14,6 +14,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -28,6 +29,8 @@ import coil.compose.AsyncImage
 import kotlinx.coroutines.delay
 
 import com.example.viewmodel.MainViewModel
+import com.example.data.local.UserStats
+import com.example.ui.theme.neonGlow
 
 @OptIn(androidx.compose.animation.ExperimentalSharedTransitionApi::class)
 @Composable
@@ -35,6 +38,7 @@ fun MiniPlayer(
     controller: MediaController?,
     dominantColor: Color?,
     viewModel: MainViewModel,
+    userStats: UserStats,
     sharedTransitionScope: androidx.compose.animation.SharedTransitionScope,
     onExpand: () -> Unit
 ) {
@@ -92,6 +96,7 @@ fun MiniPlayer(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 8.dp, vertical = 4.dp)
+                .neonGlow(color = dominantColor ?: Color.White, enabled = userStats.neonBorders)
                 .clickable { view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY); onExpand() },
             shape = RoundedCornerShape(8.dp),
             colors = CardDefaults.cardColors(containerColor = dominantColor ?: Color(0xFF333333))
@@ -141,14 +146,14 @@ fun MiniPlayer(
                             fontWeight = FontWeight.Bold, 
                             color = Color.White,
                             maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
+                            modifier = Modifier.basicMarquee()
                         )
                         Text(
                             text = currentArtist, 
                             style = MaterialTheme.typography.bodySmall, 
                             color = Color.White.copy(alpha = 0.7f), 
                             maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
+                            modifier = Modifier.basicMarquee()
                         )
                     }
                     
@@ -169,11 +174,16 @@ fun MiniPlayer(
                         view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
                         if (isPlaying) controller.pause() else controller.play()
                     }) {
-                        Icon(
-                            imageVector = if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
-                            contentDescription = "Play/Pause",
-                            tint = Color.White
-                        )
+                        androidx.compose.animation.AnimatedContent(
+                            targetState = isPlaying,
+                            label = "play_pause_anim_mini"
+                        ) { playing ->
+                            Icon(
+                                imageVector = if (playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+                                contentDescription = "Play/Pause",
+                                tint = Color.White
+                            )
+                        }
                     }
                     IconButton(onClick = {
                         view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)

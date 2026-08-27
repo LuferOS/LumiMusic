@@ -36,11 +36,64 @@ sealed class DownloadState {
 
 
 
+data class UpdateInfo(
+    val isAvailable: Boolean = false,
+    val newVersion: String = "",
+    val updateUrl: String = "",
+    val releaseNotes: String = ""
+)
+
 class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val likedTrackDao = AppDatabase.getDatabase(application).likedTrackDao()
     
     val likedTracks = likedTrackDao.getAllLikedTracks()
         .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+
+    private val _updateInfo = MutableStateFlow(UpdateInfo())
+    val updateInfo: StateFlow<UpdateInfo> = _updateInfo
+
+    init {
+        checkForUpdates()
+    }
+
+    private fun isNewerVersion(latest: String, current: String): Boolean {
+        val lParts = latest.split(".").mapNotNull { it.toIntOrNull() }
+        val cParts = current.split(".").mapNotNull { it.toIntOrNull() }
+        val maxLength = maxOf(lParts.size, cParts.size)
+        for (i in 0 until maxLength) {
+            val l = lParts.getOrElse(i) { 0 }
+            val c = cParts.getOrElse(i) { 0 }
+            if (l > c) return true
+            if (l < c) return false
+        }
+        return false
+    }
+
+    fun checkForUpdates() {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val owner = "LuferOS" 
+                val repo = "LumiMusic" 
+                
+                val release = com.example.data.GitHubApi.service.getLatestRelease(owner, repo)
+                val currentVersionName = com.example.BuildConfig.VERSION_NAME
+                
+                val latestVersion = release.tagName.removePrefix("v").removePrefix("V")
+                val currentVersion = currentVersionName.removePrefix("v").removePrefix("V")
+                
+                if (isNewerVersion(latestVersion, currentVersion)) {
+                    _updateInfo.value = UpdateInfo(
+                        isAvailable = true,
+                        newVersion = release.tagName,
+                        updateUrl = release.htmlUrl,
+                        releaseNotes = release.body ?: "Nueva versión detectada"
+                    )
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
 
     fun toggleLike(uri: String, title: String, artist: String, artworkUrl: String?) {
         viewModelScope.launch {
@@ -145,7 +198,56 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             try {
                 val response = withContext(Dispatchers.IO) { iTunesApi.searchTracks(term = query) }
-                _searchState.value = SearchState.Success(response.results)
+                if (response.results.isNotEmpty()) {
+                    _searchState.value = SearchState.Success(response.results)
+                } else {
+                    // Fallback to YouTube API directly for long names that iTunes fails to find
+                    val ytRes = withContext(Dispatchers.IO) { 
+                        try { api.searchYouTube(query = query) } catch(e: Exception) { null }
+                    }
+                    if (ytRes != null && ytRes.status && ytRes.data != null) {
+                        val fakeTrack = ITunesTrack(
+                            trackName = ytRes.data.title ?: query,
+                            artistName = ytRes.data.author ?: "YouTube",
+                            artworkUrl100 = ytRes.data.thumbnail
+                        )
+                        _searchState.value = SearchState.Success(listOf(fakeTrack))
+                    } else {
+                        val spotRes = withContext(Dispatchers.IO) {
+                            try { api.searchSpotify(query = query) } catch(e: Exception) { null }
+                        }
+                        if (spotRes != null && spotRes.status && spotRes.data != null) {
+                            val fakeTrack = ITunesTrack(
+                                trackName = spotRes.data.title ?: query,
+                                artistName = spotRes.data.artist ?: "Spotify",
+                                artworkUrl100 = spotRes.data.cover
+                            )
+                            _searchState.value = SearchState.Success(listOf(fakeTrack))
+                        } else {
+                            _searchState.value = SearchState.Success(emptyList())
+                        }
+                    }
+                }
+                
+                // Prefetch first result in background to accelerate playback
+                if (response.results.isNotEmpty()) {
+                    val first = response.results.first()
+                    viewModelScope.launch(Dispatchers.IO) {
+                        try {
+                            val fullQuery = "${first.trackName} ${first.artistName}"
+                            val url = if (currentApiPref == "Spotify") {
+                                api.searchSpotify(query = fullQuery).data?.downloadUrl
+                            } else {
+                                api.searchYouTube(query = fullQuery).data?.downloadUrl
+                            }
+                            if (url != null) {
+                                com.example.player.PrefetchManager.prefetchUrl(getApplication<android.app.Application>(), url)
+                            }
+                        } catch(e: Exception) {
+                            e.printStackTrace()
+                        }
+                    }
+                }
             } catch (e: Exception) {
                 _searchState.value = SearchState.Error(e.localizedMessage ?: "Error searching tracks")
             }

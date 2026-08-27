@@ -16,6 +16,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -134,26 +135,51 @@ class MainActivity : ComponentActivity() {
                 try { Color(android.graphics.Color.parseColor(userStats.primaryColorHex)) } catch(e: Exception) { Color(0xFF00FFFF) }
             }
 
+            val updateInfo by viewModel.updateInfo.collectAsStateWithLifecycle()
+            val context = androidx.compose.ui.platform.LocalContext.current
+            var showUpdateDialog by remember { mutableStateOf(true) }
+
             MyApplicationTheme(
                 primaryColorHex = userStats.primaryColorHex,
                 fontPref = userStats.fontPreference,
                 dynamicColor = false
             ) {
+                com.example.ui.components.UpdateDialog(
+                    isAvailable = updateInfo.isAvailable && showUpdateDialog,
+                    newVersion = updateInfo.newVersion,
+                    updateUrl = updateInfo.updateUrl,
+                    releaseNotes = updateInfo.releaseNotes,
+                    onDismiss = { showUpdateDialog = false }
+                )
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = Color.Black
                 ) {
                   androidx.compose.animation.SharedTransitionLayout {
-                    var selectedTab by remember { mutableStateOf(0) }
+                    var selectedTab by remember { mutableStateOf(userStats.startupTab) }
                     var showEqualizer by remember { mutableStateOf(false) }
+                    var showSplash by remember { mutableStateOf(true) }
+                    
+                    LaunchedEffect(Unit) {
+                        kotlinx.coroutines.delay(2000)
+                        showSplash = false
+                    }
 
                     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-                        val isWideScreen = maxWidth >= 600.dp
+                        if (showSplash) {
+                            com.example.ui.screens.SplashScreen(primaryColor = activeColor)
+                        } else if (!userStats.hasSeenOnboarding) {
+                            com.example.ui.screens.OnboardingScreen(
+                                primaryColor = activeColor,
+                                onComplete = { profileViewModel.completeOnboarding() }
+                            )
+                        } else {
+                            val isWideScreen = maxWidth >= 600.dp
                         
                         Scaffold(
                             bottomBar = {
                                 Column {
-                                    MiniPlayer(viewModel = viewModel, 
+                                    MiniPlayer(viewModel = viewModel, userStats = userStats, 
                                         controller = mediaController,
                                         dominantColor = activeColor,
                                         sharedTransitionScope = this@SharedTransitionLayout,
@@ -171,48 +197,55 @@ class MainActivity : ComponentActivity() {
                                             containerColor = Color.Transparent,
                                             contentColor = Color.White
                                         ) {
-                                            NavigationBarItem(
-                                                icon = { Icon(Icons.Rounded.Search, contentDescription = "Buscar", modifier = Modifier.size(28.dp)) },
-                                                label = { Text("Buscar", style = MaterialTheme.typography.labelSmall) },
-                                                selected = selectedTab == 0,
-                                                onClick = { selectedTab = 0 },
-                                                colors = NavigationBarItemDefaults.colors(
-                                                    indicatorColor = Color.Transparent,
-                                                    selectedIconColor = Color.White,
-                                                    selectedTextColor = Color.White,
-                                                    unselectedIconColor = Color.White.copy(alpha = 0.5f),
-                                                    unselectedTextColor = Color.White.copy(alpha = 0.5f)
-                                                )
-                                            )
-                                            NavigationBarItem(
-                                                icon = { Icon(Icons.Rounded.LibraryMusic, contentDescription = "Tu biblioteca", modifier = Modifier.size(28.dp)) },
-                                                label = { Text("Tu biblioteca", style = MaterialTheme.typography.labelSmall) },
-                                                selected = selectedTab == 1,
-                                                onClick = { 
-                                                    selectedTab = 1
-                                                    checkAndRequestPermissions()
-                                                },
-                                                colors = NavigationBarItemDefaults.colors(
-                                                    indicatorColor = Color.Transparent,
-                                                    selectedIconColor = Color.White,
-                                                    selectedTextColor = Color.White,
-                                                    unselectedIconColor = Color.White.copy(alpha = 0.5f),
-                                                    unselectedTextColor = Color.White.copy(alpha = 0.5f)
-                                                )
-                                            )
-                                            NavigationBarItem(
-                                                icon = { Icon(Icons.Rounded.Person, contentDescription = "Perfil", modifier = Modifier.size(28.dp)) },
-                                                label = { Text("Perfil", style = MaterialTheme.typography.labelSmall) },
-                                                selected = selectedTab == 2,
-                                                onClick = { selectedTab = 2 },
-                                                colors = NavigationBarItemDefaults.colors(
-                                                    indicatorColor = Color.Transparent,
-                                                    selectedIconColor = Color.White,
-                                                    selectedTextColor = Color.White,
-                                                    unselectedIconColor = Color.White.copy(alpha = 0.5f),
-                                                    unselectedTextColor = Color.White.copy(alpha = 0.5f)
-                                                )
-                                            )
+                                            val orderIndices = userStats.navOrder.split(",").mapNotNull { it.toIntOrNull() }
+                                            val validIndices = if (orderIndices.size == 3 && orderIndices.containsAll(listOf(0,1,2))) orderIndices else listOf(0,1,2)
+                                            
+                                            validIndices.forEach { tabIndex ->
+                                                when (tabIndex) {
+                                                    0 -> NavigationBarItem(
+                                                        icon = { Icon(Icons.Rounded.Search, contentDescription = "Buscar", modifier = Modifier.size(28.dp)) },
+                                                        label = { Text("Buscar", style = MaterialTheme.typography.labelSmall) },
+                                                        selected = selectedTab == 0,
+                                                        onClick = { selectedTab = 0 },
+                                                        colors = NavigationBarItemDefaults.colors(
+                                                            indicatorColor = Color.Transparent,
+                                                            selectedIconColor = Color.White,
+                                                            selectedTextColor = Color.White,
+                                                            unselectedIconColor = Color.White.copy(alpha = 0.5f),
+                                                            unselectedTextColor = Color.White.copy(alpha = 0.5f)
+                                                        )
+                                                    )
+                                                    1 -> NavigationBarItem(
+                                                        icon = { Icon(Icons.Rounded.LibraryMusic, contentDescription = "Tu biblioteca", modifier = Modifier.size(28.dp)) },
+                                                        label = { Text("Tu biblioteca", style = MaterialTheme.typography.labelSmall) },
+                                                        selected = selectedTab == 1,
+                                                        onClick = { 
+                                                            selectedTab = 1
+                                                            checkAndRequestPermissions()
+                                                        },
+                                                        colors = NavigationBarItemDefaults.colors(
+                                                            indicatorColor = Color.Transparent,
+                                                            selectedIconColor = Color.White,
+                                                            selectedTextColor = Color.White,
+                                                            unselectedIconColor = Color.White.copy(alpha = 0.5f),
+                                                            unselectedTextColor = Color.White.copy(alpha = 0.5f)
+                                                        )
+                                                    )
+                                                    2 -> NavigationBarItem(
+                                                        icon = { Icon(Icons.Rounded.Person, contentDescription = "Perfil", modifier = Modifier.size(28.dp)) },
+                                                        label = { Text("Perfil", style = MaterialTheme.typography.labelSmall) },
+                                                        selected = selectedTab == 2,
+                                                        onClick = { selectedTab = 2 },
+                                                        colors = NavigationBarItemDefaults.colors(
+                                                            indicatorColor = Color.Transparent,
+                                                            selectedIconColor = Color.White,
+                                                            selectedTextColor = Color.White,
+                                                            unselectedIconColor = Color.White.copy(alpha = 0.5f),
+                                                            unselectedTextColor = Color.White.copy(alpha = 0.5f)
+                                                        )
+                                                    )
+                                                }
+                                            }
                                         }
                                     }
                                 }
@@ -267,7 +300,7 @@ class MainActivity : ComponentActivity() {
                                                 onColorExtracted = { color -> dominantColor = color },
                                                 dominantColor = activeColor
                                             )
-                                            1 -> LocalMusicScreen(mainViewModel = viewModel, 
+                                            1 -> LocalMusicScreen(mainViewModel = viewModel, userStats = userStats, 
                                                 viewModel = localMusicViewModel,
                                                 controller = mediaController,
                                                 dominantColor = activeColor
@@ -292,7 +325,7 @@ class MainActivity : ComponentActivity() {
                                 targetOffsetY = { it }
                             )
                         ) {
-                            FullScreenPlayer(viewModel = viewModel, 
+                            FullScreenPlayer(viewModel = viewModel, userStats = userStats, 
                                 controller = mediaController,
                                 dominantColor = activeColor,
                                 sharedTransitionScope = this@SharedTransitionLayout,
@@ -301,16 +334,17 @@ class MainActivity : ComponentActivity() {
                             )
                         }
 
+                        } // end else
                         if (showEqualizer) {
                             AudioSettingsBottomSheet(controller = mediaController) {
                                 showEqualizer = false
                             }
                         }
+                    }
                   }
                 }
             }
         }
-    }
     }
 
     private fun checkAndRequestPermissions() {
@@ -441,6 +475,17 @@ fun MainScreen(
             val dlState = downloadState
 
             if (sState is com.example.viewmodel.SearchState.Success) {
+                if (sState.results.isEmpty()) {
+                    Column(
+                        modifier = Modifier.fillMaxSize().padding(32.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Icon(Icons.Rounded.SearchOff, contentDescription = null, modifier = Modifier.size(64.dp), tint = Color.White.copy(alpha=0.3f))
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text("No se encontraron resultados", color = Color.White.copy(alpha=0.5f), style = MaterialTheme.typography.bodyLarge)
+                    }
+                } else {
                 LazyVerticalGrid(
                     columns = GridCells.Adaptive(minSize = 350.dp),
                     modifier = Modifier.fillMaxSize(),
@@ -451,8 +496,10 @@ fun MainScreen(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .padding(horizontal = 8.dp, vertical = 2.dp)
+                                .clip(RoundedCornerShape(12.dp))
                                 .clickable { viewModel.playFromRemotePlaylist(sState.results, index, userStats.apiPreference) }
-                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                                .padding(horizontal = 8.dp, vertical = 8.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             coil.compose.AsyncImage(
@@ -464,9 +511,9 @@ fun MainScreen(
                             )
                             Spacer(modifier = Modifier.width(16.dp))
                             Column(modifier = Modifier.weight(1f)) {
-                                Text(text = track.trackName ?: "Unknown", color = Color.White, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Normal, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text(text = track.trackName ?: "Unknown", color = Color.White, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Normal, maxLines = 1, modifier = Modifier.basicMarquee())
                                 Spacer(modifier = Modifier.height(2.dp))
-                                Text(text = "Canción • ${track.artistName ?: "Unknown"}", style = MaterialTheme.typography.bodyMedium, color = Color.White.copy(alpha = 0.6f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text(text = "Canción • ${track.artistName ?: "Unknown"}", style = MaterialTheme.typography.bodyMedium, color = Color.White.copy(alpha = 0.6f), maxLines = 1, modifier = Modifier.basicMarquee())
                             }
                             IconButton(onClick = {
                                 viewModel.selectTrack(track.trackName ?: "", track.artistName ?: "", userStats.apiPreference, "download")
@@ -476,6 +523,7 @@ fun MainScreen(
 
                         }
                     }
+                }
                 }
             } else if (sState is com.example.viewmodel.SearchState.Error) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -539,6 +587,10 @@ fun MainScreen(
                             textAlign = TextAlign.Center,
                             style = MaterialTheme.typography.bodyLarge
                         )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        TextButton(onClick = { viewModel.resetState() }) {
+                            Text("Cancelar", color = MaterialTheme.colorScheme.error)
+                        }
                     }
                 }
             } else if (dlState is com.example.viewmodel.DownloadState.Error) {

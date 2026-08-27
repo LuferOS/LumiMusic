@@ -14,6 +14,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -37,6 +38,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.utils.LrcLine
 import com.example.viewmodel.MainViewModel
+import com.example.ui.theme.neonGlow
 
 @OptIn(ExperimentalMaterial3Api::class, androidx.compose.animation.ExperimentalSharedTransitionApi::class)
 @Composable
@@ -44,6 +46,7 @@ fun FullScreenPlayer(
     controller: MediaController?,
     dominantColor: Color?,
     viewModel: MainViewModel,
+    userStats: com.example.data.local.UserStats,
     sharedTransitionScope: androidx.compose.animation.SharedTransitionScope,
     animatedVisibilityScope: androidx.compose.animation.AnimatedVisibilityScope,
     onClose: () -> Unit
@@ -151,6 +154,7 @@ fun FullScreenPlayer(
                             state = rememberSharedContentState(key = "album_art"),
                             animatedVisibilityScope = animatedVisibilityScope
                         )
+                        .neonGlow(color = dominantColor ?: Color.White, cornerRadius = 8.dp, enabled = userStats.neonBorders)
                         .clip(RoundedCornerShape(8.dp))
                         .background(Color.White.copy(alpha = 0.1f)),
                     contentAlignment = Alignment.Center
@@ -173,7 +177,18 @@ fun FullScreenPlayer(
                 }
             }
 
-            Spacer(modifier = Modifier.weight(0.3f))
+            Spacer(modifier = Modifier.weight(0.15f))
+            
+            VisualizerView(
+                isPlaying = isPlaying,
+                visualizerType = userStats.visualizerType,
+                primaryColor = if (userStats.visualizerColor == "Dinámico") (dominantColor ?: Color.White) else {
+                    try { Color(android.graphics.Color.parseColor(userStats.visualizerColor)) } catch(e: Exception) { Color.White }
+                },
+                modifier = Modifier.padding(horizontal = 32.dp)
+            )
+
+            Spacer(modifier = Modifier.weight(0.15f))
 
             // Title & Artist Row
             Row(
@@ -187,7 +202,7 @@ fun FullScreenPlayer(
                         style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
                         color = Color.White,
                         maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        modifier = Modifier.basicMarquee()
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
@@ -195,7 +210,7 @@ fun FullScreenPlayer(
                         style = MaterialTheme.typography.titleMedium,
                         color = Color.White.copy(alpha = 0.7f),
                         maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        modifier = Modifier.basicMarquee()
                     )
                 }
                 val currentUri = controller?.currentMediaItem?.localConfiguration?.uri?.toString() ?: ""
@@ -285,12 +300,17 @@ fun FullScreenPlayer(
                         },
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        imageVector = if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
-                        contentDescription = "Play/Pause",
-                        modifier = Modifier.size(36.dp),
-                        tint = Color.Black
-                    )
+                    androidx.compose.animation.AnimatedContent(
+                        targetState = isPlaying,
+                        label = "play_pause_anim"
+                    ) { playing ->
+                        Icon(
+                            imageVector = if (playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+                            contentDescription = "Play/Pause",
+                            modifier = Modifier.size(36.dp),
+                            tint = Color.Black
+                        )
+                    }
                 }
                 
                 IconButton(onClick = { 
@@ -421,9 +441,11 @@ fun FullScreenPlayer(
         }
     }
 }
+
 private fun formatTime(ms: Long): String {
     val totalSeconds = ms / 1000
     val minutes = totalSeconds / 60
     val seconds = totalSeconds % 60
     return String.format("%d:%02d", minutes, seconds)
 }
+

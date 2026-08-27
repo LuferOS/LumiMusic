@@ -18,5 +18,11 @@ data class UserStats(
     val neonBorders: Boolean = true,
     val extractAlbumColor: Boolean = true,
     val transitionType: String = "Gapless",
-    val transitionDuration: Int = 3
+    val transitionDuration: Int = 3,
+    val hasSeenOnboarding: Boolean = false,
+    val startupTab: Int = 0,
+    val navOrder: String = "0,1,2",
+    val playerFont: String = "Default",
+    val visualizerType: String = "Ondas",
+    val visualizerColor: String = "Dinámico"
 )

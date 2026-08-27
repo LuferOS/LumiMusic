@@ -1,0 +1,199 @@
+        setContent {
+            val userStats by profileViewModel.userStats.collectAsStateWithLifecycle()
+            var dominantColor by remember { mutableStateOf<Color?>(null) }
+            var showFullScreenPlayer by remember { mutableStateOf(false) }
+
+            val activeColor = if (userStats.extractAlbumColor && dominantColor != null) {
+                dominantColor!!
+            } else {
+                try { Color(android.graphics.Color.parseColor(userStats.primaryColorHex)) } catch(e: Exception) { Color(0xFF00FFFF) }
+            }
+
+            MyApplicationTheme(
+                primaryColorHex = userStats.primaryColorHex,
+                fontPref = userStats.fontPreference,
+                dynamicColor = false
+            ) {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = Color.Black
+                ) {
+                  androidx.compose.animation.SharedTransitionLayout {
+                    var selectedTab by remember { mutableStateOf(0) }
+                    var showEqualizer by remember { mutableStateOf(false) }
+
+                    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+                    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+                        if (!userStats.hasSeenOnboarding) {
+                            com.example.ui.screens.OnboardingScreen(
+                                primaryColor = activeColor,
+                                onComplete = { profileViewModel.completeOnboarding() }
+                            )
+                        } else {
+                            val isWideScreen = maxWidth >= 600.dp
+                        
+                        Scaffold(
+                            bottomBar = {
+                                Column {
+                                    MiniPlayer(viewModel = viewModel, 
+                                        controller = mediaController,
+                                        dominantColor = activeColor,
+                                        sharedTransitionScope = this@SharedTransitionLayout,
+                                        onExpand = {
+                                            val title = mediaController?.currentMediaItem?.mediaMetadata?.title?.toString()
+                                            val artist = mediaController?.currentMediaItem?.mediaMetadata?.artist?.toString()
+                                            if (!title.isNullOrBlank()) {
+                                                viewModel.fetchLyrics(title, artist ?: "")
+                                            }
+                                            showFullScreenPlayer = true
+                                        }
+                                    )
+                                    if (!isWideScreen) {
+                                        NavigationBar(
+                                            containerColor = Color.Transparent,
+                                            contentColor = Color.White
+                                        ) {
+                                            NavigationBarItem(
+                                                icon = { Icon(Icons.Rounded.Search, contentDescription = "Buscar", modifier = Modifier.size(28.dp)) },
+                                                label = { Text("Buscar", style = MaterialTheme.typography.labelSmall) },
+                                                selected = selectedTab == 0,
+                                                onClick = { selectedTab = 0 },
+                                                colors = NavigationBarItemDefaults.colors(
+                                                    indicatorColor = Color.Transparent,
+                                                    selectedIconColor = Color.White,
+                                                    selectedTextColor = Color.White,
+                                                    unselectedIconColor = Color.White.copy(alpha = 0.5f),
+                                                    unselectedTextColor = Color.White.copy(alpha = 0.5f)
+                                                )
+                                            )
+                                            NavigationBarItem(
+                                                icon = { Icon(Icons.Rounded.LibraryMusic, contentDescription = "Tu biblioteca", modifier = Modifier.size(28.dp)) },
+                                                label = { Text("Tu biblioteca", style = MaterialTheme.typography.labelSmall) },
+                                                selected = selectedTab == 1,
+                                                onClick = { 
+                                                    selectedTab = 1
+                                                    checkAndRequestPermissions()
+                                                },
+                                                colors = NavigationBarItemDefaults.colors(
+                                                    indicatorColor = Color.Transparent,
+                                                    selectedIconColor = Color.White,
+                                                    selectedTextColor = Color.White,
+                                                    unselectedIconColor = Color.White.copy(alpha = 0.5f),
+                                                    unselectedTextColor = Color.White.copy(alpha = 0.5f)
+                                                )
+                                            )
+                                            NavigationBarItem(
+                                                icon = { Icon(Icons.Rounded.Person, contentDescription = "Perfil", modifier = Modifier.size(28.dp)) },
+                                                label = { Text("Perfil", style = MaterialTheme.typography.labelSmall) },
+                                                selected = selectedTab == 2,
+                                                onClick = { selectedTab = 2 },
+                                                colors = NavigationBarItemDefaults.colors(
+                                                    indicatorColor = Color.Transparent,
+                                                    selectedIconColor = Color.White,
+                                                    selectedTextColor = Color.White,
+                                                    unselectedIconColor = Color.White.copy(alpha = 0.5f),
+                                                    unselectedTextColor = Color.White.copy(alpha = 0.5f)
+                                                )
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        ) { padding ->
+                            Row(modifier = Modifier.fillMaxSize().padding(padding)) {
+                                if (isWideScreen) {
+                                    NavigationRail(
+                                        containerColor = MaterialTheme.colorScheme.background,
+                                        contentColor = activeColor
+                                    ) {
+                                        NavigationRailItem(
+                                            icon = { Icon(Icons.Rounded.Search, contentDescription = "Online") },
+                                            label = { Text("Online") },
+                                            selected = selectedTab == 0,
+                                            onClick = { selectedTab = 0 },
+                                            colors = NavigationRailItemDefaults.colors(indicatorColor = activeColor.copy(alpha = 0.2f), selectedIconColor = activeColor, selectedTextColor = activeColor)
+                                        )
+                                        NavigationRailItem(
+                                            icon = { Icon(Icons.Rounded.LibraryMusic, contentDescription = "Local") },
+                                            label = { Text("Local") },
+                                            selected = selectedTab == 1,
+                                            onClick = { 
+                                                selectedTab = 1
+                                                checkAndRequestPermissions()
+                                            },
+                                            colors = NavigationRailItemDefaults.colors(indicatorColor = activeColor.copy(alpha = 0.2f), selectedIconColor = activeColor, selectedTextColor = activeColor)
+                                        )
+                                        NavigationRailItem(
+                                            icon = { Icon(Icons.Rounded.Person, contentDescription = "Profile") },
+                                            label = { Text("Profile") },
+                                            selected = selectedTab == 2,
+                                            onClick = { selectedTab = 2 },
+                                            colors = NavigationRailItemDefaults.colors(indicatorColor = activeColor.copy(alpha = 0.2f), selectedIconColor = activeColor, selectedTextColor = activeColor)
+                                        )
+                                    }
+                                }
+                                Box(modifier = Modifier.weight(1f)) {
+                                    androidx.compose.animation.AnimatedContent(
+                                        targetState = selectedTab,
+                                        transitionSpec = {
+                                            androidx.compose.animation.slideInHorizontally { width -> if (targetState > initialState) width else -width } + androidx.compose.animation.fadeIn() togetherWith
+                                            androidx.compose.animation.slideOutHorizontally { width -> if (targetState > initialState) -width else width } + androidx.compose.animation.fadeOut()
+                                        },
+                                        label = "TabTransition"
+                                    ) { tab ->
+                                        when (tab) {
+                                            0 -> MainScreen(
+                                                viewModel = viewModel,
+                                                profileViewModel = profileViewModel,
+                                                controller = mediaController,
+                                                onColorExtracted = { color -> dominantColor = color },
+                                                dominantColor = activeColor
+                                            )
+                                            1 -> LocalMusicScreen(mainViewModel = viewModel, 
+                                                viewModel = localMusicViewModel,
+                                                controller = mediaController,
+                                                dominantColor = activeColor
+                                            )
+                                            2 -> ProfileScreen(
+                                                viewModel = profileViewModel,
+                                                dominantColor = activeColor,
+                                                onOpenEqualizer = { showEqualizer = true }
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        
+                        androidx.compose.animation.AnimatedVisibility(
+                            visible = showFullScreenPlayer,
+                            enter = androidx.compose.animation.slideInVertically(
+                                initialOffsetY = { it }
+                            ),
+                            exit = androidx.compose.animation.slideOutVertically(
+                                targetOffsetY = { it }
+                            )
+                        ) {
+                            FullScreenPlayer(viewModel = viewModel, 
+                                controller = mediaController,
+                                dominantColor = activeColor,
+                                sharedTransitionScope = this@SharedTransitionLayout,
+                                animatedVisibilityScope = this,
+                                onClose = { showFullScreenPlayer = false }
+                            )
+                        }
+
+                        } // end else
+                        if (showEqualizer) {
+                            AudioSettingsBottomSheet(controller = mediaController) {
+                                showEqualizer = false
+                            }
+                        }
+                  }
+                }
+            }
+        }
+    }
+    }
+
+

@@ -43,6 +43,8 @@ fun ProfileScreen(
     var showEditDialog by remember { mutableStateOf(false) }
     var showAppearanceDialog by remember { mutableStateOf(false) }
     var showTransitionsDialog by remember { mutableStateOf(false) }
+    var showCreditsDialog by remember { mutableStateOf(false) }
+    var showCustomizationDialog by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val applyNeon = stats.neonBorders
 
@@ -81,68 +83,82 @@ fun ProfileScreen(
                     icon = Icons.Rounded.Person,
                     title = "Cuenta",
                     subtitle = "${stats.userName} • Nivel: ${calculateLevel(stats.totalListeningSeconds)}",
+                    applyNeon = applyNeon,
+                    neonColor = dominantColor ?: Color.Cyan,
                     onClick = { showEditDialog = true }
                 )
                 SettingItem(
                     icon = Icons.Rounded.Palette,
                     title = "Apariencia y Tema",
-                    subtitle = "Personalizar el diseño de la aplicación",
+                    subtitle = "Colores y bordes neón",
+                    applyNeon = applyNeon,
+                    neonColor = dominantColor ?: Color.Magenta,
                     onClick = { showAppearanceDialog = true }
+                )
+                SettingItem(
+                    icon = Icons.Rounded.DashboardCustomize,
+                    title = "Personalización Avanzada",
+                    subtitle = "Pantalla de inicio, navegación y fuentes",
+                    applyNeon = applyNeon,
+                    neonColor = dominantColor ?: Color.Cyan,
+                    onClick = { showCustomizationDialog = true }
                 )
                 SettingItem(
                     icon = Icons.Rounded.Equalizer,
                     title = "Reproducción",
                     subtitle = "Ajustes de audio, ecualizador",
+                    applyNeon = applyNeon,
+                    neonColor = dominantColor ?: Color.Green,
                     onClick = onOpenEqualizer
                 )
                 SettingItem(
                     icon = Icons.Rounded.SwapHoriz,
                     title = "Transiciones (Crossfade)",
                     subtitle = "${stats.transitionType} - ${stats.transitionDuration}s",
+                    applyNeon = applyNeon,
+                    neonColor = dominantColor ?: Color.Yellow,
                     onClick = { showTransitionsDialog = true }
                 )
                 SettingItem(
                     icon = Icons.Rounded.Download,
                     title = "Estadísticas de reproducción",
                     subtitle = "${stats.totalDownloads} descargas • ${formatListeningTime(stats.totalListeningSeconds)}",
+                    applyNeon = applyNeon,
+                    neonColor = dominantColor ?: Color.Blue,
                     onClick = { }
                 )
                 SettingItem(
                     icon = Icons.Rounded.Share,
                     title = "Invitar a amigos",
                     subtitle = "Comparte la aplicación APK",
+                    applyNeon = applyNeon,
+                    neonColor = dominantColor ?: Color.Red,
                     onClick = { shareApk(context) }
+                )
+                
+                SettingItem(
+                    icon = Icons.Rounded.Delete,
+                    title = "Limpiar Caché",
+                    subtitle = "Libera espacio borrando música temporal",
+                    applyNeon = applyNeon,
+                    neonColor = dominantColor ?: Color.Gray,
+                    onClick = {
+                        viewModel.clearCache(context)
+                        android.widget.Toast.makeText(context, "Caché limpiada correctamente", android.widget.Toast.LENGTH_SHORT).show()
+                    }
                 )
                 
                 Spacer(modifier = Modifier.height(16.dp))
                 
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        text = "LumiMusic v1.0",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = Color.White.copy(alpha = 0.5f)
-                    )
-                    Text(
-                        text = "IMPULSADO POR ALYA CORE API GRACIAS ANDER POR TU API❤️‍🩹",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = Color.White.copy(alpha = 0.7f),
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                        modifier = Modifier.padding(vertical = 4.dp, horizontal = 16.dp)
-                    )
-                    Text(
-                        text = "Creado por LuferOS",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Color.White.copy(alpha = 0.4f)
-                    )
-                    Text(
-                        text = "Luis Fernando Guzmán Niño",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Color.White.copy(alpha = 0.4f)
-                    )
-                }
+                SettingItem(
+                    icon = Icons.Rounded.Info,
+                    title = "Créditos e Información",
+                    subtitle = "Versión, desarrolladores y API",
+                    applyNeon = applyNeon,
+                    neonColor = dominantColor ?: Color.White,
+                    onClick = { showCreditsDialog = true }
+                )
+                Spacer(modifier = Modifier.height(32.dp))
             }
         }
     }
@@ -243,9 +259,13 @@ fun ProfileScreen(
         var isNeon by remember { mutableStateOf(stats.neonBorders) }
         var isExtract by remember { mutableStateOf(stats.extractAlbumColor) }
         
-        val neonColors = listOf("#00FFFF" to "Cyan", "#FF00FF" to "Magenta", "#00FF00" to "Lime", "#FF9800" to "Orange", "#E040FB" to "Purple")
+        val neonColors = listOf(
+            "#00FFFF" to "Cyan", "#FF00FF" to "Magenta", "#00FF00" to "Lime", 
+            "#FF9800" to "Naranja", "#E040FB" to "Púrpura", "#F44336" to "Rojo", 
+            "#2196F3" to "Azul", "#FFEB3B" to "Amarillo", "#E91E63" to "Rosa"
+        )
         val bgColors = listOf("#000000" to "AMOLED Black", "#121212" to "Dark Gray")
-        val fonts = listOf("Default", "Serif", "Monospace", "Cursive")
+        val fonts = listOf("Default", "Serif", "Monospace", "Cursive", "Sans-Serif")
         
         AlertDialog(
             onDismissRequest = { showAppearanceDialog = false },
@@ -253,10 +273,30 @@ fun ProfileScreen(
             text = {
                 Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                     Text("Color de Acento", style = MaterialTheme.typography.labelLarge)
-                    neonColors.forEach { (hex, name) ->
-                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clickable { selectedPrimary = hex }) {
-                            RadioButton(selected = selectedPrimary == hex, onClick = { selectedPrimary = hex })
-                            Text(name)
+                    
+                    // Chip selection for neon colors
+                    androidx.compose.foundation.lazy.LazyRow(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(neonColors.size) { index ->
+                            val colorData = neonColors[index]
+                            androidx.compose.material3.FilterChip(
+                                selected = selectedPrimary == colorData.first,
+                                onClick = { selectedPrimary = colorData.first },
+                                label = { Text(colorData.second) }
+                            )
+                        }
+                    }
+                    
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                    
+                    Text("Tipografía de la App", style = MaterialTheme.typography.labelLarge)
+                    androidx.compose.foundation.lazy.LazyRow(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(fonts.size) { index ->
+                            val fName = fonts[index]
+                            androidx.compose.material3.FilterChip(
+                                selected = selectedFont == fName,
+                                onClick = { selectedFont = fName },
+                                label = { Text(fName) }
+                            )
                         }
                     }
                     HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
@@ -281,6 +321,71 @@ fun ProfileScreen(
             }
         )
     }
+
+
+    if (showCustomizationDialog) {
+        com.example.ui.components.CustomizationDialog(
+            userStats = stats,
+            onDismiss = { showCustomizationDialog = false },
+            onSave = { tab, order, font, vType, vColor ->
+                viewModel.updateCustomization(tab, order, font, vType, vColor)
+            }
+        )
+    }
+    if (showCreditsDialog) {
+        val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
+        AlertDialog(
+            onDismissRequest = { showCreditsDialog = false },
+            title = { Text("Créditos e Información") },
+            text = {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.MusicNote,
+                        contentDescription = null,
+                        modifier = Modifier.size(48.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "LumiMusic v1.0",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "Creado por LuferOS",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = "Luis Fernando Guzmán Niño",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                    )
+                    Spacer(modifier = Modifier.height(24.dp))
+                    HorizontalDivider()
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "IMPULSADO POR ALYA CORE API\nGRACIAS ANDER POR TU API ❤️\u200D\uD83E\uDE79",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    TextButton(onClick = { uriHandler.openUri("https://api.alyacore.xyz") }) {
+                        Text("api.alyacore.xyz", color = MaterialTheme.colorScheme.primary)
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showCreditsDialog = false }) { Text("Cerrar") }
+            }
+        )
+    }
 }
 
 @Composable
@@ -288,13 +393,18 @@ fun SettingItem(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     title: String,
     subtitle: String,
+    applyNeon: Boolean = false,
+    neonColor: Color = Color.Cyan,
     onClick: () -> Unit
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp)
+            .neonGlow(color = neonColor, cornerRadius = 16.dp, enabled = applyNeon)
+            .clip(RoundedCornerShape(16.dp))
             .clickable(onClick = onClick)
-            .padding(horizontal = 24.dp, vertical = 16.dp),
+            .padding(horizontal = 16.dp, vertical = 16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(
