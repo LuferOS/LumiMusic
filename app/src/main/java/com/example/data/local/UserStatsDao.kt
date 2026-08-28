@@ -46,4 +46,7 @@ interface UserStatsDao {
 
     @Query("UPDATE user_stats SET showSpectrums = :show WHERE id = 1")
     suspend fun updateShowSpectrums(show: Boolean)
+    
+    @Query("UPDATE user_stats SET batterySaver = :enabled WHERE id = 1")
+    suspend fun updateBatterySaver(enabled: Boolean)
 }

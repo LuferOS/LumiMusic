@@ -24,6 +24,8 @@ import androidx.media3.datasource.cache.LeastRecentlyUsedCacheEvictor
 import androidx.media3.database.StandaloneDatabaseProvider
 import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.datasource.okhttp.OkHttpDataSource
+import com.example.data.NetworkClient
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import java.io.File
 
@@ -70,13 +72,14 @@ class PlaybackService : MediaSessionService() {
             .setBufferDurationsMs(
                 50000, // min buffer 50s
                 100000, // max buffer 100s
-                1500, // buffer for playback 1.5s
-                2500  // buffer for playback after rebuffer 2.5s
+                250, // buffer for playback 0.25s (Arranque ultra rápido)
+                1000  // buffer for playback after rebuffer 1.0s
             )
+            .setPrioritizeTimeOverSizeThresholds(true)
             .build()
             
         @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
-        val httpDataSourceFactory = DefaultHttpDataSource.Factory().setAllowCrossProtocolRedirects(true)
+        val httpDataSourceFactory = OkHttpDataSource.Factory(NetworkClient.sharedClient)
         
         @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
         val cacheDataSourceFactory = CacheDataSource.Factory()

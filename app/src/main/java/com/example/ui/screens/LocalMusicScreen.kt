@@ -53,7 +53,7 @@ fun LocalMusicScreen(
         musicList.filter { it.title.contains(searchQuery, ignoreCase = true) || it.artist.contains(searchQuery, ignoreCase = true) }
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(Color.Black)) {
+    Column(modifier = Modifier.fillMaxSize().background(Color(0xFF121212))) {
         // Header
         Row(
             modifier = Modifier
@@ -65,10 +65,10 @@ fun LocalMusicScreen(
                 modifier = Modifier
                     .size(36.dp)
                     .clip(CircleShape)
-                    .background(Color(0xFFFF5722)),
+                    .background(Color(0xFF1DB954)),
                 contentAlignment = Alignment.Center
             ) {
-                Text("L", color = Color.White, fontWeight = FontWeight.Bold) // Placeholder for profile initial
+                Text(userStats.userName.firstOrNull()?.toString()?.uppercase() ?: "U", color = Color.White, fontWeight = FontWeight.Bold)
             }
             Spacer(modifier = Modifier.width(16.dp))
             Text(
@@ -92,7 +92,7 @@ fun LocalMusicScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 8.dp)
-                    .clip(RoundedCornerShape(8.dp)),
+                    .clip(RoundedCornerShape(32.dp)),
                 colors = TextFieldDefaults.colors(
                     focusedContainerColor = Color(0xFF242424),
                     unfocusedContainerColor = Color(0xFF242424),
@@ -160,8 +160,8 @@ fun LocalMusicScreen(
                     Box(
                         modifier = Modifier
                             .size(64.dp)
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(Color(0xFF5353CE)),
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Color(0xFF1DB954)),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(Icons.Rounded.Favorite, contentDescription = null, tint = Color.White)
@@ -173,7 +173,7 @@ fun LocalMusicScreen(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Rounded.PushPin, contentDescription = null, tint = Color(0xFF1DB954), modifier = Modifier.size(12.dp))
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text("Playlist • ${likedSongs.size} canciones", style = MaterialTheme.typography.bodyMedium, color = Color.White.copy(alpha = 0.6f))
+                            Text("Playlist • ${likedSongs.size} canciones", style = MaterialTheme.typography.bodyMedium, color = Color.White.copy(alpha = 0.5f))
                         }
                     }
                 }
@@ -226,14 +226,14 @@ fun LocalMusicScreen(
                             contentDescription = null,
                             modifier = Modifier
                                 .size(64.dp)
-                                .clip(RoundedCornerShape(4.dp))
+                                .clip(RoundedCornerShape(12.dp))
                                 .background(Color(0xFF2A2A2A))
                         )
                         Spacer(modifier = Modifier.width(16.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(track.title, color = Color.White, style = MaterialTheme.typography.bodyLarge, maxLines = 1, modifier = Modifier.basicMarquee())
                             Spacer(modifier = Modifier.height(2.dp))
-                            Text("Favorito • ${track.artist}", style = MaterialTheme.typography.bodyMedium, color = Color.White.copy(alpha = 0.6f), maxLines = 1, modifier = Modifier.basicMarquee())
+                            Text("Favorito • ${track.artist}", style = MaterialTheme.typography.bodyMedium, color = Color.White.copy(alpha = 0.5f), maxLines = 1, modifier = Modifier.basicMarquee())
                         }
                     }
                 }
@@ -282,7 +282,7 @@ fun LocalMusicScreen(
                     Box(
                         modifier = Modifier
                             .size(64.dp)
-                            .clip(RoundedCornerShape(4.dp))
+                            .clip(RoundedCornerShape(12.dp))
                             .background(Color(0xFF2A2A2A)),
                         contentAlignment = Alignment.Center
                     ) {
@@ -292,7 +292,7 @@ fun LocalMusicScreen(
                     Column(modifier = Modifier.weight(1f)) {
                         Text(audio.title, color = Color.White, style = MaterialTheme.typography.bodyLarge, maxLines = 1, modifier = Modifier.basicMarquee())
                         Spacer(modifier = Modifier.height(2.dp))
-                        Text("Descargado • ${audio.artist}", style = MaterialTheme.typography.bodyMedium, color = Color.White.copy(alpha = 0.6f), maxLines = 1, modifier = Modifier.basicMarquee())
+                        Text("Descargado • ${audio.artist}", style = MaterialTheme.typography.bodyMedium, color = Color.White.copy(alpha = 0.5f), maxLines = 1, modifier = Modifier.basicMarquee())
                     }
                 }
             }

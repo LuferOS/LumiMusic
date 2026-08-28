@@ -53,7 +53,7 @@ fun ProfileScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color.Black)
+                .background(Color(0xFF121212))
         ) {
             // Header
             Row(
@@ -62,7 +62,6 @@ fun ProfileScreen(
                     .padding(horizontal = 16.dp, vertical = 16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-
                 Text(
                     text = "Configuración",
                     style = MaterialTheme.typography.titleLarge,
@@ -71,7 +70,6 @@ fun ProfileScreen(
                     modifier = Modifier.weight(1f),
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center
                 )
-
             }
 
             Column(
@@ -119,6 +117,15 @@ fun ProfileScreen(
                     applyNeon = applyNeon,
                     neonColor = dominantColor ?: Color.Yellow,
                     onClick = { showTransitionsDialog = true }
+                )
+                
+                SettingItem(
+                    icon = Icons.Rounded.BatterySaver,
+                    title = "Ahorro de Energía",
+                    subtitle = if (stats.batterySaver) "Activado (se activa con < 20% de batería)" else "Desactivado",
+                    applyNeon = applyNeon,
+                    neonColor = dominantColor ?: Color.Green,
+                    onClick = { viewModel.updateBatterySaver(!stats.batterySaver) }
                 )
                 SettingItem(
                     icon = Icons.Rounded.Download,
@@ -172,11 +179,20 @@ fun ProfileScreen(
             title = { Text("Editar Perfil") },
             text = {
                 Column {
-                    OutlinedTextField(
+                    TextField(
                         value = newName,
                         onValueChange = { newName = it },
-                        label = { Text("Nombre de usuario") },
-                        modifier = Modifier.fillMaxWidth()
+                        label = { Text("Nombre de usuario", color = Color.White.copy(alpha=0.6f)) },
+                        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(32.dp)),
+                        colors = TextFieldDefaults.colors(
+                            focusedContainerColor = Color(0xFF242424),
+                            unfocusedContainerColor = Color(0xFF242424),
+                            focusedIndicatorColor = Color.Transparent,
+                            unfocusedIndicatorColor = Color.Transparent,
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White,
+                            cursorColor = Color.White
+                        )
                     )
                     Spacer(modifier = Modifier.height(16.dp))
                     Text("Motor de Descarga / Reproducción", style = MaterialTheme.typography.labelLarge)
@@ -396,37 +412,7 @@ fun ProfileScreen(
 }
 
 @Composable
-fun SettingItem(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    title: String,
-    subtitle: String,
-    applyNeon: Boolean = false,
-    neonColor: Color = Color.Cyan,
-    onClick: () -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp)
-            .neonGlow(color = neonColor, cornerRadius = 16.dp, enabled = applyNeon)
-            .clip(RoundedCornerShape(16.dp))
-            .bouncyClick(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 16.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = Color.White,
-            modifier = Modifier.size(24.dp)
-        )
-        Spacer(modifier = Modifier.width(16.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(text = title, style = MaterialTheme.typography.titleMedium, color = Color.White)
-            Text(text = subtitle, style = MaterialTheme.typography.bodyMedium, color = Color.White.copy(alpha = 0.6f))
-        }
-    }
-}
+
 
 fun formatListeningTime(seconds: Long): String {
     val hours = seconds / 3600
@@ -487,6 +473,48 @@ fun shareApk(context: android.content.Context) {
             
         } catch (e: Exception) {
             e.printStackTrace()
+        }
+    }
+}
+
+@Composable
+fun SettingItem(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    subtitle: String,
+    applyNeon: Boolean = false,
+    neonColor: Color = Color.Cyan,
+    onClick: () -> Unit
+) {
+    androidx.compose.foundation.layout.Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 6.dp)
+            .neonGlow(color = neonColor, cornerRadius = 16.dp, enabled = applyNeon)
+            .clip(RoundedCornerShape(16.dp))
+            .background(Color.White.copy(alpha = 0.05f))
+            .bouncyClick(onClick = onClick)
+            .padding(16.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = if (applyNeon) neonColor else Color.White.copy(alpha = 0.8f),
+                modifier = Modifier.size(28.dp)
+            )
+            Spacer(modifier = Modifier.width(16.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(text = title, style = MaterialTheme.typography.titleMedium, color = Color.White)
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(text = subtitle, style = MaterialTheme.typography.bodyMedium, color = Color.White.copy(alpha = 0.6f))
+            }
+            Icon(
+                imageVector = Icons.Rounded.ChevronRight,
+                contentDescription = null,
+                tint = Color.White.copy(alpha = 0.3f),
+                modifier = Modifier.size(20.dp)
+            )
         }
     }
 }

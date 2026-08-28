@@ -5,7 +5,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
@@ -20,25 +19,21 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalView
 import android.view.HapticFeedbackConstants
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
-import coil.compose.AsyncImage
 import kotlinx.coroutines.delay
 
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.example.utils.LrcLine
 import com.example.viewmodel.MainViewModel
-import com.example.ui.theme.neonGlow
+import com.example.utils.rememberBatteryLevel
 
 @OptIn(ExperimentalMaterial3Api::class, androidx.compose.animation.ExperimentalSharedTransitionApi::class)
 @Composable
@@ -62,7 +57,10 @@ fun FullScreenPlayer(
     val lrcState by viewModel.lrcState.collectAsStateWithLifecycle()
     val lyricsState by viewModel.lyricsState.collectAsStateWithLifecycle()
 
-    LaunchedEffect(controller) {
+    val batteryLevel = rememberBatteryLevel()
+    val isBatterySaverOn = userStats.batterySaver && batteryLevel <= 20f
+
+    LaunchedEffect(controller, isBatterySaverOn) {
         val listener = object : Player.Listener {
             override fun onIsPlayingChanged(playing: Boolean) {
                 isPlaying = playing
@@ -87,20 +85,21 @@ fun FullScreenPlayer(
             if (controller?.isPlaying == true) {
                 currentPosition = controller.currentPosition.coerceAtLeast(0L)
             }
-            delay(100) // Fast update for smooth lyrics and progress
+            // Battery Saver: Update UI every 1s instead of 100ms when battery is low
+            delay(if (isBatterySaverOn) 1000L else 100L)
         }
     }
 
     val progress = if (duration > 0) currentPosition.toFloat() / duration.toFloat() else 0f
     
-    // Dynamic Gradient based on dominantColor (Spotify style)
+    // Minimalist Design: Flat gradient, more dark/subtle
     val topColor = dominantColor ?: Color.DarkGray
     val bottomColor = Color(0xFF121212)
 
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Brush.verticalGradient(listOf(topColor.copy(alpha = 0.6f), bottomColor)))
+            .background(Brush.verticalGradient(listOf(topColor.copy(alpha = 0.5f), bottomColor)))
             .pointerInput(Unit) {
                 detectDragGestures { _, dragAmount ->
                     if (dragAmount.y > 50) {
@@ -131,55 +130,30 @@ fun FullScreenPlayer(
                 }) {
                     Icon(Icons.Rounded.KeyboardArrowDown, contentDescription = "Close", tint = Color.White)
                 }
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        text = "Now Playing",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = Color.White.copy(alpha = 0.7f),
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-                Spacer(modifier = Modifier.size(48.dp)) // To balance the back button
+                Text(
+                    text = "Now Playing",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = Color.White.copy(alpha = 0.7f),
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.size(48.dp))
             }
 
             Spacer(modifier = Modifier.weight(0.2f))
 
-            // Cover Art
-            with(sharedTransitionScope) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .aspectRatio(1f)
-                        .sharedElement(
-                            state = rememberSharedContentState(key = "album_art"),
-                            animatedVisibilityScope = animatedVisibilityScope
-                        )
-                        .neonGlow(color = dominantColor ?: Color.White, cornerRadius = 8.dp, enabled = userStats.neonBorders)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(Color.White.copy(alpha = 0.1f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                if (artworkUri != null) {
-                    AsyncImage(
-                        model = artworkUri,
-                        contentDescription = "Album Art",
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                } else {
-                    Icon(
-                        imageVector = Icons.Rounded.MusicNote,
-                        contentDescription = null,
-                        modifier = Modifier.size(100.dp),
-                        tint = Color.White.copy(alpha = 0.3f)
-                    )
-                }
-                }
-            }
+            PlayerArtwork(
+                artworkUri = artworkUri,
+                dominantColor = dominantColor,
+                neonBorders = userStats.neonBorders,
+                isBatterySaverOn = isBatterySaverOn,
+                sharedTransitionScope = sharedTransitionScope,
+                animatedVisibilityScope = animatedVisibilityScope
+            )
 
             Spacer(modifier = Modifier.weight(0.15f))
             
-            if (userStats.showSpectrums) {
+            // Battery Saver: Disable Visualizer
+            if (userStats.showSpectrums && !isBatterySaverOn) {
                 VisualizerView(
                     isPlaying = isPlaying,
                     visualizerType = userStats.visualizerType,
@@ -206,7 +180,7 @@ fun FullScreenPlayer(
                         style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
                         color = Color.White,
                         maxLines = 1,
-                        modifier = Modifier.basicMarquee()
+                        modifier = if (isBatterySaverOn) Modifier else Modifier.basicMarquee()
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
@@ -214,7 +188,7 @@ fun FullScreenPlayer(
                         style = MaterialTheme.typography.titleMedium,
                         color = Color.White.copy(alpha = 0.7f),
                         maxLines = 1,
-                        modifier = Modifier.basicMarquee()
+                        modifier = if (isBatterySaverOn) Modifier else Modifier.basicMarquee()
                     )
                 }
                 val currentUri = controller?.currentMediaItem?.localConfiguration?.uri?.toString() ?: ""
@@ -247,7 +221,8 @@ fun FullScreenPlayer(
                 },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(24.dp), // Thinner look
+                    .padding(horizontal = 8.dp)
+                    .height(24.dp),
                 colors = SliderDefaults.colors(
                     thumbColor = Color.White,
                     activeTrackColor = Color.White,
@@ -257,100 +232,23 @@ fun FullScreenPlayer(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 4.dp),
+                    .padding(horizontal = 8.dp),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Text(formatTime(currentPosition), style = MaterialTheme.typography.labelMedium, color = Color.White.copy(alpha = 0.7f))
-                Text(formatTime(duration), style = MaterialTheme.typography.labelMedium, color = Color.White.copy(alpha = 0.7f))
+                Text(formatTime(currentPosition), style = MaterialTheme.typography.labelMedium, color = Color.White.copy(alpha = 0.5f), fontWeight = FontWeight.SemiBold)
+                Text(formatTime(duration), style = MaterialTheme.typography.labelMedium, color = Color.White.copy(alpha = 0.5f), fontWeight = FontWeight.SemiBold)
             }
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Playback Controls
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                var isShuffle by remember { mutableStateOf(controller?.shuffleModeEnabled == true) }
-                IconButton(onClick = { 
-                    view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
-                    controller?.shuffleModeEnabled = !isShuffle
-                    isShuffle = !isShuffle
-                }) {
-                    Icon(Icons.Rounded.Shuffle, contentDescription = "Shuffle", tint = if (isShuffle) Color(0xFF1DB954) else Color.White.copy(alpha = 0.7f))
-                }
-                IconButton(onClick = { 
-                        view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
-                        if (controller?.hasPreviousMediaItem() == false) {
-                            val isShuffle = controller?.shuffleModeEnabled == true
-                            val repeatMode = controller?.repeatMode ?: Player.REPEAT_MODE_OFF
-                            viewModel.playPreviousRemote(isShuffle, repeatMode)
-                        } else {
-                            controller?.seekToPrevious() 
-                        }
-                    }) {
-                    Icon(Icons.Rounded.SkipPrevious, contentDescription = "Previous", modifier = Modifier.size(48.dp), tint = Color.White)
-                }
-                
-                Box(
-                    modifier = Modifier
-                        .size(64.dp)
-                        .clip(CircleShape)
-                        .background(Color.White)
-                        .clickable { 
-                            view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
-                            if (isPlaying) controller?.pause() else controller?.play() 
-                        },
-                    contentAlignment = Alignment.Center
-                ) {
-                    androidx.compose.animation.AnimatedContent(
-                        targetState = isPlaying,
-                        label = "play_pause_anim"
-                    ) { playing ->
-                        Icon(
-                            imageVector = if (playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
-                            contentDescription = "Play/Pause",
-                            modifier = Modifier.size(36.dp),
-                            tint = Color.Black
-                        )
-                    }
-                }
-                
-                IconButton(onClick = { 
-                        view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
-                        if (controller?.hasNextMediaItem() == false) {
-                            val isShuffle = controller?.shuffleModeEnabled == true
-                            val repeatMode = controller?.repeatMode ?: Player.REPEAT_MODE_OFF
-                            viewModel.playNextRemote(isShuffle, repeatMode)
-                        } else {
-                            controller?.seekToNext() 
-                        }
-                    }) {
-                    Icon(Icons.Rounded.SkipNext, contentDescription = "Next", modifier = Modifier.size(48.dp), tint = Color.White)
-                }
-                var repeatMode by remember { mutableStateOf(controller?.repeatMode ?: Player.REPEAT_MODE_OFF) }
-                IconButton(onClick = { 
-                    view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
-                    val nextMode = when(repeatMode) {
-                        Player.REPEAT_MODE_OFF -> Player.REPEAT_MODE_ALL
-                        Player.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ONE
-                        else -> Player.REPEAT_MODE_OFF
-                    }
-                    controller?.repeatMode = nextMode
-                    repeatMode = nextMode
-                }) {
-                    Icon(
-                        imageVector = if (repeatMode == Player.REPEAT_MODE_ONE) Icons.Rounded.RepeatOne else Icons.Rounded.Repeat, 
-                        contentDescription = "Repeat", 
-                        tint = if (repeatMode != Player.REPEAT_MODE_OFF) Color(0xFF1DB954) else Color.White.copy(alpha = 0.7f)
-                    )
-                }
-            }
+            PlayerControls(
+                controller = controller,
+                isPlaying = isPlaying,
+                viewModel = viewModel,
+                isBatterySaverOn = isBatterySaverOn
+            )
 
             Spacer(modifier = Modifier.height(16.dp))
-            
-
 
             // Lyrics Peek Box
             Box(
@@ -358,7 +256,7 @@ fun FullScreenPlayer(
                     .fillMaxWidth()
                     .heightIn(min = 90.dp)
                     .clip(RoundedCornerShape(16.dp))
-                    .background(if (isLyricsExpanded) Color.Black.copy(alpha = 0.6f) else Color.White.copy(alpha = 0.1f))
+                    .background(if (isLyricsExpanded) Color.Black.copy(alpha = 0.4f) else Color.White.copy(alpha = 0.08f))
                     .clickable { isLyricsExpanded = !isLyricsExpanded }
                     .padding(16.dp)
                     .weight(if (isLyricsExpanded) 1f else 0.001f, fill = false)
@@ -394,8 +292,7 @@ fun FullScreenPlayer(
                         
                         val listState = rememberLazyListState()
                         LaunchedEffect(activeLineIndex) {
-                            if (isLyricsExpanded && !lrcState.isNullOrEmpty()) {
-                                // Smooth scroll to keep active line near center
+                            if (isLyricsExpanded && !lrcState.isNullOrEmpty() && !isBatterySaverOn) {
                                 val targetIdx = maxOf(0, activeLineIndex - 2)
                                 listState.animateScrollToItem(targetIdx)
                             }
@@ -409,7 +306,7 @@ fun FullScreenPlayer(
                             itemsIndexed(lrcState ?: emptyList()) { index, line ->
                                 val isActive = index == activeLineIndex
                                 val alpha = if (isActive) 1f else 0.4f
-                                val scale = if (isActive) 1.05f else 1f
+                                val scale = if (isActive) (if (isBatterySaverOn) 1f else 1.05f) else 1f
                                 Text(
                                     text = line.text,
                                     style = MaterialTheme.typography.headlineSmall.copy(fontWeight = if (isActive) FontWeight.Bold else FontWeight.Medium),
@@ -452,4 +349,3 @@ private fun formatTime(ms: Long): String {
     val seconds = totalSeconds % 60
     return String.format("%d:%02d", minutes, seconds)
 }
-

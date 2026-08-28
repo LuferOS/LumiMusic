@@ -17,8 +17,8 @@ android {
     applicationId = "com.aistudio.lumimusic.xqzpnm"
     minSdk = 24
     targetSdk = 36
-    versionCode = 7
-    versionName = "2.0"
+    versionCode = 8
+    versionName = "2.1"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
@@ -121,6 +121,7 @@ dependencies {
   implementation(libs.androidx.media3.exoplayer)
   implementation(libs.androidx.media3.ui)
   implementation(libs.androidx.media3.session)
+  implementation(libs.androidx.media3.datasource.okhttp)
   implementation(libs.androidx.palette.ktx)
   implementation(libs.coil.compose)
   testImplementation(libs.androidx.compose.ui.test.junit4)

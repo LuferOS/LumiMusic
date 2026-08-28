@@ -67,6 +67,12 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    fun updateBatterySaver(enabled: Boolean) {
+        viewModelScope.launch {
+            dao.updateBatterySaver(enabled)
+        }
+    }
+
     fun clearCache(context: android.content.Context) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
